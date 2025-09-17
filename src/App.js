@@ -1037,7 +1037,7 @@ function App() {
               images={images}
               selectedImageIndex={selectedImageIndex}
               onImageSelect={setSelectedImageIndex}
-              selectedPlatform={selectedPlatform}
+              targetPlatform={selectedPlatform}
               onRemoveImage={handleRemoveImage}
               onImageClick={handleImageClick}
             />

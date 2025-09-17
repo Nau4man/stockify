@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
-const MetadataPreview = ({ 
-  metadata, 
-  isVisible, 
-  onEdit, 
-  isDarkMode = false, 
-  images = [], 
-  selectedImageIndex = 0, 
+const MetadataPreview = ({
+  metadata,
+  isVisible,
+  onEdit,
+  isDarkMode = false,
+  images = [],
+  selectedImageIndex = 0,
   onImageSelect, 
   onImageClick,
-  onRemoveImage 
+  onRemoveImage,
+  onSave,
+  targetPlatform = 'shutterstock'
 }) => {
   const [loadedImages, setLoadedImages] = useState(new Set());
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState({});
   // Keyboard navigation
   const handleKeyDown = useCallback((e) => {
     if (!isVisible || images.length === 0) return;
@@ -89,13 +93,233 @@ const MetadataPreview = ({
     setLoadedImages(prev => new Set(prev).add(index));
   }, []);
 
+  // Get the current metadata item based on selectedImageIndex
+  const currentMetadata = metadata && Array.isArray(metadata) ? metadata[selectedImageIndex] : null;
+
+  // Inline editing functions
+  const handleEditForm = useCallback(() => {
+    if (!currentMetadata) return;
+    setIsEditing(true);
+    setEditValues({
+      description: currentMetadata.description || '',
+      keywords: currentMetadata.keywords || '',
+      categories: currentMetadata.categories || '',
+      editorial: currentMetadata.editorial || 'no'
+    });
+  }, [currentMetadata]);
+
+  const handleSaveForm = useCallback(() => {
+    if (onSave && currentMetadata) {
+      const updatedMetadata = {
+        ...currentMetadata,
+        ...editValues
+      };
+      onSave(updatedMetadata, selectedImageIndex);
+    }
+    setIsEditing(false);
+    setEditValues({});
+  }, [onSave, editValues, currentMetadata, selectedImageIndex]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setEditValues({});
+  }, []);
+
+  const handleInputChange = useCallback((fieldName, value) => {
+    setEditValues(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+  }, []);
+
+  // Platform-specific validation rules
+  const validationRules = useMemo(() => ({
+    shutterstock: {
+      description: {
+        minLength: 10,
+        maxLength: 200,
+        required: true,
+        message: 'Shutterstock: 10-200 characters required'
+      },
+      keywords: {
+        minCount: 3,
+        maxCount: 50,
+        required: true,
+        message: 'Shutterstock: 3-50 keywords required'
+      },
+      categories: {
+        required: true,
+        message: 'Shutterstock: At least one category required'
+      }
+    },
+    getty_images: {
+      description: {
+        minLength: 20,
+        maxLength: 500,
+        required: true,
+        message: 'Getty Images: 20-500 characters required'
+      },
+      keywords: {
+        minCount: 5,
+        maxCount: 30,
+        required: true,
+        message: 'Getty Images: 5-30 keywords required'
+      },
+      categories: {
+        required: true,
+        message: 'Getty Images: At least one category required'
+      }
+    },
+    adobe_stock: {
+      description: {
+        minLength: 10,
+        maxLength: 1000,
+        required: true,
+        message: 'Adobe Stock: 10-1000 characters required'
+      },
+      keywords: {
+        minCount: 2,
+        maxCount: 50,
+        required: true,
+        message: 'Adobe Stock: 2-50 keywords required'
+      },
+      categories: {
+        required: false,
+        message: 'Adobe Stock: Categories are optional'
+      }
+    },
+    istock: {
+      description: {
+        minLength: 10,
+        maxLength: 200,
+        required: true,
+        message: 'iStock: 10-200 characters required'
+      },
+      keywords: {
+        minCount: 3,
+        maxCount: 50,
+        required: true,
+        message: 'iStock: 3-50 keywords required'
+      },
+      categories: {
+        required: true,
+        message: 'iStock: At least one category required'
+      }
+    }
+  }), []);
+
+  // Validation function
+  const validateField = useCallback((fieldName, value) => {
+    const rules = validationRules[targetPlatform]?.[fieldName];
+    if (!rules) return { isValid: true, message: '' };
+
+    const errors = [];
+
+    if (rules.required && (!value || value.trim().length === 0)) {
+      errors.push(`${rules.message} - Field is required`);
+    }
+
+    if (value && value.trim().length > 0) {
+      if (rules.minLength && value.length < rules.minLength) {
+        errors.push(`${rules.message} - Need at least ${rules.minLength} characters (current: ${value.length})`);
+      }
+      if (rules.maxLength && value.length > rules.maxLength) {
+        errors.push(`${rules.message} - Maximum ${rules.maxLength} characters allowed (current: ${value.length})`);
+      }
+      if (rules.minCount && fieldName === 'keywords') {
+        const keywordCount = value.split(',').filter(k => k.trim().length > 0).length;
+        if (keywordCount < rules.minCount) {
+          errors.push(`${rules.message} - Need at least ${rules.minCount} keywords (current: ${keywordCount})`);
+        }
+      }
+      if (rules.maxCount && fieldName === 'keywords') {
+        const keywordCount = value.split(',').filter(k => k.trim().length > 0).length;
+        if (keywordCount > rules.maxCount) {
+          errors.push(`${rules.message} - Maximum ${rules.maxCount} keywords allowed (current: ${keywordCount})`);
+        }
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      message: errors.join('. ')
+    };
+  }, [validationRules, targetPlatform]);
+
   // Early returns after hooks
   if (!isVisible || !metadata || !Array.isArray(metadata)) return null;
 
-  // Get the current metadata item based on selectedImageIndex
-  const currentMetadata = metadata[selectedImageIndex];
-
   if (!currentMetadata) return null;
+
+  // Reusable field component for form editing
+  const FormField = ({ fieldName, label, value, isEditable = true, isTextarea = false }) => {
+    const displayValue = isEditing ? (editValues[fieldName] || '') : (value || '');
+    const validation = isEditing ? validateField(fieldName, displayValue) : { isValid: true, message: '' };
+    const hasError = !validation.isValid;
+
+    return (
+      <div>
+        <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+          {label}
+          {isEditing && validationRules[targetPlatform]?.[fieldName]?.required && (
+            <span className="text-red-500 ml-1">*</span>
+          )}
+        </label>
+        {isEditing ? (
+          isTextarea ? (
+            <textarea
+              value={displayValue}
+              onChange={(e) => handleInputChange(fieldName, e.target.value)}
+              className={`w-full text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700' : 'text-gray-900 bg-gray-50'} p-2 rounded border focus:ring-2 focus:border-transparent resize-none ${
+                hasError 
+                  ? `${isDarkMode ? 'border-red-500' : 'border-red-300'} focus:ring-red-500` 
+                  : displayValue && !hasError
+                    ? `${isDarkMode ? 'border-green-500' : 'border-green-300'} focus:ring-green-500`
+                    : `${isDarkMode ? 'border-gray-600' : 'border-gray-200'} focus:ring-blue-500`
+              }`}
+              rows={3}
+            />
+          ) : (
+            <input
+              type="text"
+              value={displayValue}
+              onChange={(e) => handleInputChange(fieldName, e.target.value)}
+              className={`w-full text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700' : 'text-gray-900 bg-gray-50'} p-2 rounded border focus:ring-2 focus:border-transparent ${
+                hasError 
+                  ? `${isDarkMode ? 'border-red-500' : 'border-red-300'} focus:ring-red-500` 
+                  : displayValue && !hasError
+                    ? `${isDarkMode ? 'border-green-500' : 'border-green-300'} focus:ring-green-500`
+                    : `${isDarkMode ? 'border-gray-600' : 'border-gray-200'} focus:ring-blue-500`
+              }`}
+            />
+          )
+        ) : (
+          <div className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border`}>
+            <span className={displayValue ? '' : `${isDarkMode ? 'text-gray-500' : 'text-gray-400'} italic`}>
+              {displayValue || 'Empty'}
+            </span>
+          </div>
+        )}
+        {isEditing && (
+          <div className="mt-1">
+            {hasError ? (
+              <p className="text-xs text-red-500">
+                {validation.message}
+              </p>
+            ) : displayValue ? (
+              <p className="text-xs text-green-500">
+                ✓ {validationRules[targetPlatform]?.[fieldName]?.message || 'Valid'}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-400">
+                {validationRules[targetPlatform]?.[fieldName]?.message || 'Enter value to validate'}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className={`w-full ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
@@ -115,14 +339,33 @@ const MetadataPreview = ({
             </p>
           )}
         </div>
-        {onEdit && !currentMetadata.error && currentMetadata.filename && (
-          <button
-            onClick={() => onEdit(currentMetadata)}
-            className="px-3 py-1 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200"
-          >
-            Edit
-          </button>
-        )}
+               {!currentMetadata.error && currentMetadata.filename && (
+                 <div className="flex space-x-2">
+                   {!isEditing ? (
+                     <button
+                       onClick={handleEditForm}
+                       className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                     >
+                       Edit
+                     </button>
+                   ) : (
+                     <>
+                       <button
+                         onClick={handleSaveForm}
+                         className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200"
+                       >
+                         Save
+                       </button>
+                       <button
+                         onClick={handleCancelEdit}
+                         className="px-3 py-1 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors duration-200"
+                       >
+                         Cancel
+                       </button>
+                     </>
+                   )}
+                 </div>
+               )}
       </div>
 
       {/* Main Content Layout: Thumbnails on Left, Metadata on Right */}
@@ -304,11 +547,20 @@ const MetadataPreview = ({
           </div>
         )}
 
-        {/* Right Side: Metadata Fields */}
-        <div className="lg:col-span-3">
-          <h4 className={`text-md font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-4`}>
-            Metadata Fields
-          </h4>
+               {/* Right Side: Metadata Fields */}
+               <div className="lg:col-span-3">
+                 <div className="flex items-center justify-between mb-4">
+                   <h4 className={`text-md font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                     Metadata Fields
+                   </h4>
+                   {isEditing && (
+                     <div className={`text-xs px-2 py-1 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                       <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                         Validating for: <span className="font-medium capitalize">{targetPlatform}</span>
+                       </span>
+                     </div>
+                   )}
+                 </div>
           <div className="space-y-4">
             <div>
               <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
@@ -319,41 +571,30 @@ const MetadataPreview = ({
               </p>
             </div>
             
-            <div>
-              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                Description
-              </label>
-              <p className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border`}>
-                {currentMetadata.description || <span className={`${isDarkMode ? 'text-gray-500' : 'text-gray-400'} italic`}>Empty</span>}
-              </p>
-            </div>
+            <FormField
+              fieldName="description"
+              label="Description"
+              value={currentMetadata.description}
+              isTextarea={true}
+            />
             
-            <div>
-              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                Keywords
-              </label>
-              <p className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border`}>
-                {currentMetadata.keywords || <span className={`${isDarkMode ? 'text-gray-500' : 'text-gray-400'} italic`}>Empty</span>}
-              </p>
-            </div>
+            <FormField
+              fieldName="keywords"
+              label="Keywords"
+              value={currentMetadata.keywords}
+            />
             
-            <div>
-              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                Categories
-              </label>
-              <p className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border`}>
-                {currentMetadata.categories || <span className={`${isDarkMode ? 'text-gray-500' : 'text-gray-400'} italic`}>Empty</span>}
-              </p>
-            </div>
+            <FormField
+              fieldName="categories"
+              label="Categories"
+              value={currentMetadata.categories}
+            />
             
-            <div>
-              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                Editorial
-              </label>
-              <p className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border`}>
-                {currentMetadata.editorial || 'no'}
-              </p>
-            </div>
+            <FormField
+              fieldName="editorial"
+              label="Editorial"
+              value={currentMetadata.editorial}
+            />
             
             <div>
               <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
