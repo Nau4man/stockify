@@ -101,7 +101,6 @@ export const clearModelRateLimit = (modelKey) => {
 
 // Get all rate limited models
 export const getRateLimitedModels = () => {
-  const rateLimits = getStoredRateLimits();
   const rateLimitedModels = [];
   
   Object.keys(MODEL_RATE_LIMITS).forEach(modelKey => {

@@ -1,8 +1,19 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 
-const FileUpload = ({ onFilesSelected, isProcessing, isDarkMode = false }) => {
+const FileUpload = forwardRef(({ onFilesSelected, isProcessing, isDarkMode = false }, ref) => {
   const [isDragActive, setDragActive] = useState(false);
   const [dragReject, setDragReject] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  // Expose the file input ref to parent component
+  useImperativeHandle(ref, () => ({
+    clear: () => {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+        console.log('File input cleared from parent');
+      }
+    }
+  }));
 
   // Handle drag events
   const handleDrag = useCallback((e) => {
@@ -48,13 +59,17 @@ const FileUpload = ({ onFilesSelected, isProcessing, isDarkMode = false }) => {
 
   // Handle file input change
   const handleFileInput = (e) => {
+    console.log('File input changed:', e.target.files);
     const files = Array.from(e.target.files);
+    console.log('Files selected:', files.length);
     
     // Validate files
     const validFiles = [];
     const errors = [];
     
     files.forEach(file => {
+      console.log('Processing file:', file.name, file.type, file.size);
+      
       // Check file type
       if (!file.type.startsWith('image/')) {
         errors.push(`${file.name}: Not an image file`);
@@ -83,13 +98,17 @@ const FileUpload = ({ onFilesSelected, isProcessing, isDarkMode = false }) => {
       // You could show these errors to the user if needed
     }
     
+    console.log('Valid files:', validFiles.length);
+    
     if (validFiles.length > 0) {
+      console.log('Calling onFilesSelected with:', validFiles);
       onFilesSelected(validFiles);
     } else if (files.length > 0) {
       // All files were invalid
       console.error('No valid image files selected');
     }
   };
+
 
   return (
     <div className="w-full">
@@ -107,6 +126,7 @@ const FileUpload = ({ onFilesSelected, isProcessing, isDarkMode = false }) => {
         onDrop={handleDrop}
       >
         <input
+          ref={fileInputRef}
           type="file"
           multiple
           accept="image/*"
@@ -151,24 +171,22 @@ const FileUpload = ({ onFilesSelected, isProcessing, isDarkMode = false }) => {
             </p>
             {dragReject && (
               <div className="mt-4 inline-flex items-center px-4 py-2 bg-red-100 rounded-full">
-                <svg className="w-4 h-4 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
+                <img src="/assets/icons/alert-circle.svg" alt="Alert" className="w-4 h-4 text-red-500 mr-2" />
                 <span className="text-sm text-red-600 font-medium">Please select only image files</span>
               </div>
             )}
           </div>
           
-          <div className="inline-flex items-center px-4 py-2 bg-gray-100 rounded-full">
-            <svg className="w-4 h-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm text-gray-600 font-medium">Perfect for generating stock photo metadata</span>
+          <div className="flex flex-col items-center gap-4">
+            <div className="inline-flex items-center px-4 py-2 bg-gray-100 rounded-full">
+              <img src="/assets/icons/help-circle.svg" alt="Info" className="w-4 h-4 text-gray-500 mr-2" />
+              <span className="text-sm text-gray-600 font-medium">Perfect for generating stock photo metadata</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
-};
+});
 
 export default FileUpload;

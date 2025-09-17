@@ -117,9 +117,7 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
             onClick={onClose}
             className={`p-4 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 hover:text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900'} rounded-2xl transition-all duration-200 border ${isDarkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300'} shadow-sm group`}
           >
-            <svg className="w-6 h-6 group-hover:rotate-90 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <img src="/assets/icons/x.svg" alt="Close" className="w-6 h-6 group-hover:rotate-90 transition-transform duration-200" />
           </button>
         </div>
       </div>
@@ -133,9 +131,7 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
               onClick={() => onNavigate && onNavigate(currentIndex - 1)}
                   className={`absolute left-6 top-1/2 transform -translate-y-1/2 z-20 p-4 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 hover:text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900'} rounded-2xl transition-all duration-200 border ${isDarkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300'} shadow-sm group`}
             >
-              <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+              <img src="/assets/icons/arrow-upload.svg" alt="Previous" className="w-6 h-6 group-hover:-translate-x-1 transition-transform duration-200 rotate-90" />
             </button>
           )}
           
@@ -145,9 +141,7 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
               onClick={() => onNavigate && onNavigate(currentIndex + 1)}
                   className={`absolute right-6 top-1/2 transform -translate-y-1/2 z-20 p-4 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 hover:text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900'} rounded-2xl transition-all duration-200 border ${isDarkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300'} shadow-sm group`}
             >
-              <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              <img src="/assets/icons/arrow-download.svg" alt="Next" className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-200 rotate-90" />
             </button>
           )}
         </>
@@ -205,19 +199,13 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
         <div className="flex items-center justify-center">
               <div className={`flex items-center space-x-3 ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} rounded-2xl px-6 py-4 border shadow-sm`}>
                 <button className={`p-3 ${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-200 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'} rounded-xl transition-all duration-200 group`}>
-                  <svg className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
+                  <img src="/assets/icons/arrow-download.svg" alt="Download" className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
                 </button>
                 <button className={`p-3 ${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-200 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'} rounded-xl transition-all duration-200 group`}>
-                  <svg className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                  </svg>
+                  <img src="/assets/icons/refresh.svg" alt="Share" className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
                 </button>
                 <button className={`p-3 ${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-200 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'} rounded-xl transition-all duration-200 group`}>
-                  <svg className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
+                  <img src="/assets/icons/love.svg" alt="Like" className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
                 </button>
               </div>
         </div>

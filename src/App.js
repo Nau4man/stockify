@@ -14,6 +14,7 @@ import ToastContainer from './components/ToastContainer';
 import { generateMultipleImageMetadata, retryImageMetadata, DEFAULT_MODEL, GEMINI_MODELS } from './utils/geminiApi';
 import { generateCSV, downloadCSV, validateMetadata } from './utils/csvGenerator';
 import { getRateLimitedModels } from './utils/rateLimitTracker';
+import debugEnv from './debug-env';
 
 function App() {
   const [images, setImages] = useState([]);
@@ -30,6 +31,11 @@ function App() {
   const [retryingImages, setRetryingImages] = useState(new Set());
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
   const [selectedPlatform, setSelectedPlatform] = useState('shutterstock');
+  
+  // Debug platform state changes
+  useEffect(() => {
+    console.log('Platform changed to:', selectedPlatform);
+  }, [selectedPlatform]);
   const [rateLimitNotification, setRateLimitNotification] = useState(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [toasts, setToasts] = useState([]);
@@ -40,11 +46,17 @@ function App() {
   const [showApiConfiguration, setShowApiConfiguration] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const imagesRef = useRef([]);
+  const fileInputRef = useRef(null);
   
   // Toast management functions
   const addToast = useCallback((message, type = 'info', duration = 4000) => {
+    console.log('Adding toast:', { message, type, duration });
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
+    setToasts(prev => {
+      const newToasts = [...prev, { id, message, type, duration }];
+      console.log('Toast state updated:', newToasts.length, 'toasts');
+      return newToasts;
+    });
   }, []);
 
   const removeToast = useCallback((id) => {
@@ -89,37 +101,66 @@ function App() {
 
   // Handle file selection
   const handleFilesSelected = useCallback((selectedImages) => {
-    // Get current images from ref
-    const currentImages = imagesRef.current;
+    console.log('handleFilesSelected called with:', selectedImages);
+    console.log('selectedImages length:', selectedImages.length);
+    console.log('selectedImages details:', selectedImages.map(img => ({
+      name: img.name,
+      size: img.size,
+      type: img.type
+    })));
+    
+    // Get current images from state (more reliable than ref)
+    console.log('Current images from state:', images.length);
+    console.log('Current images details:', images.map(img => ({
+      name: img.name,
+      size: img.size,
+      type: img.type
+    })));
     
     // Check for duplicates based on name, size, and type
     const newImages = selectedImages.filter(newImage => {
-      const isDuplicate = currentImages.some(existingImage => 
+      const isDuplicate = images.some(existingImage => 
         existingImage.name === newImage.name &&
         existingImage.size === newImage.size &&
         existingImage.type === newImage.type
       );
+      console.log(`Checking ${newImage.name}: isDuplicate = ${isDuplicate}`);
       return !isDuplicate;
     });
 
     const duplicateCount = selectedImages.length - newImages.length;
     const addedCount = newImages.length;
     
+    console.log('New images to add:', addedCount, 'Duplicates:', duplicateCount);
+    console.log('New images details:', newImages.map(img => ({
+      name: img.name,
+      size: img.size,
+      type: img.type
+    })));
+    
     // Show feedback messages
     if (duplicateCount > 0 && addedCount > 0) {
+      console.log('Showing warning toast');
       addToast(`${addedCount} image(s) added successfully. ${duplicateCount} duplicate(s) skipped.`, 'warning');
     } else if (duplicateCount > 0 && addedCount === 0) {
+      console.log('Showing error toast');
       addToast(`Image already uploaded! ${duplicateCount} duplicate(s) skipped.`, 'error');
     } else if (addedCount > 0) {
+      console.log('Showing success toast');
       addToast(`${addedCount} image(s) added successfully!`, 'success');
     }
 
     // Update images state
-    setImages(prevImages => [...prevImages, ...newImages]);
+    console.log('Updating images state with new images:', newImages.length);
+    setImages(prevImages => {
+      const updatedImages = [...prevImages, ...newImages];
+      console.log('Updated images count:', updatedImages.length);
+      return updatedImages;
+    });
     setShowPreview(false);
     // Reset selected image index to 0 when new images are added
     setSelectedImageIndex(0);
-  }, [addToast]);
+  }, [addToast, images]);
 
   // Handle model selection change
   const handleModelChange = useCallback((newModel) => {
@@ -167,15 +208,28 @@ function App() {
 
   // Clear all images
   const handleClearAll = useCallback(() => {
+    console.log('Clearing all images and resetting file input');
     setImages([]);
     setMetadata([]);
     setShowPreview(false);
     setError(null);
     setSelectedImageIndex(0);
+    
+    // Reset the file input to allow re-uploading the same files
+    if (fileInputRef.current) {
+      fileInputRef.current.clear();
+      console.log('File input cleared via ref method');
+    }
   }, []);
 
   // Process images with AI
   const handleProcessImages = useCallback(async () => {
+    // Debug environment variables
+    const envDebug = debugEnv();
+    console.log('Environment Debug:', envDebug);
+    console.log('Current selectedModel:', selectedModel);
+    console.log('Available GEMINI_MODELS:', Object.keys(GEMINI_MODELS));
+    
     if (images.length === 0) {
       addToast('Please upload at least one image', 'error');
       return;
@@ -204,6 +258,13 @@ function App() {
     setProgress({ current: 0, total: validImages.length, currentFile: '' });
 
     try {
+      console.log('Calling generateMultipleImageMetadata with:', {
+        validImages: validImages.length,
+        selectedModel,
+        availableModels: Object.keys(GEMINI_MODELS),
+        selectedPlatform
+      });
+      
       const result = await generateMultipleImageMetadata(
         validImages,
         (current, total, currentFile) => {
@@ -214,21 +275,23 @@ function App() {
         selectedPlatform
       );
 
-      setMetadata(result.results);
+      setMetadata(result);
       setShowPreview(true);
 
       // Show error summary if there were errors
-      if (result.errors && result.errors.length > 0) {
-        const errorSummary = result.errors.map(err => `${err.filename}: ${err.error}`).join('; ');
-        addToast(`Processing completed with ${result.errors.length} error(s)`, 'error', 6000);
-        setError(`Processing completed with ${result.errors.length} error(s): ${errorSummary}`);
+      const errors = result.filter(item => item.error);
+      if (errors.length > 0) {
+        const errorSummary = errors.map(err => `${err.filename}: ${err.message || err.originalError}`).join('; ');
+        addToast(`Processing completed with ${errors.length} error(s)`, 'error', 6000);
+        setError(`Processing completed with ${errors.length} error(s): ${errorSummary}`);
       } else {
         addToast('All images processed successfully!', 'success');
       }
 
       // Show success message
-      if (result.summary.successful > 0) {
-        console.log(`Successfully processed ${result.summary.successful} out of ${result.summary.total} images`);
+      const successful = result.filter(item => !item.error).length;
+      if (successful > 0) {
+        console.log(`Successfully processed ${successful} out of ${result.length} images`);
       }
 
     } catch (err) {
@@ -566,6 +629,7 @@ function App() {
               onFilesSelected={handleFilesSelected}
               isProcessing={isProcessing}
               isDarkMode={isDarkMode}
+              ref={fileInputRef}
             />
             
             {images.length > 0 && (

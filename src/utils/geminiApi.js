@@ -1,19 +1,30 @@
 // Copy the working parts from the original file
 const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
 
+// Debug API key loading
+console.log('API Key Debug:', {
+  hasApiKey: !!GEMINI_API_KEY,
+  keyLength: GEMINI_API_KEY?.length || 0,
+  keyPrefix: GEMINI_API_KEY?.substring(0, 10) || 'none',
+  allEnvVars: Object.keys(process.env).filter(key => key.includes('GEMINI'))
+});
+
 // Gemini model configurations
 export const GEMINI_MODELS = {
   'gemini-2.5-flash-lite': {
+    name: 'Gemini 2.5 Flash-Lite',
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
     dailyLimit: 1000,
     description: 'Best option - 1,000 requests/day'
   },
   'gemini-2.0-flash-lite': {
+    name: 'Gemini 2.0 Flash-Lite',
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
     dailyLimit: 1000,
     description: 'Second best - 1,000 requests/day'
   },
   'gemini-1.5-pro': {
+    name: 'Gemini 1.5 Pro',
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent',
     dailyLimit: 50,
     description: 'Higher quality - 50 requests/day'
@@ -68,6 +79,13 @@ const convertImageToBase64 = (file) => {
 
 // Generate metadata for a single image using Gemini Multimodal
 export const generateImageMetadata = async (imageFile, selectedModel = DEFAULT_MODEL, availableModels = Object.keys(GEMINI_MODELS), platformId = 'shutterstock') => {
+  console.log('generateImageMetadata called with:', {
+    imageFile: imageFile?.name,
+    selectedModel,
+    availableModels,
+    platformId
+  });
+  
   // Validate inputs
   if (!imageFile) {
     throw new Error('No image file provided');
@@ -83,11 +101,9 @@ export const generateImageMetadata = async (imageFile, selectedModel = DEFAULT_M
 
     // Convert image to base64
     const base64Image = await convertImageToBase64(imageFile);
-
-    // Get the selected model configuration
-    const model = GEMINI_MODELS[selectedModel];
     
     // Construct the prompt based on platform
+    console.log('Generating prompt for platform:', platformId);
     let prompt;
     if (platformId === 'adobe_stock') {
       prompt = `Analyze this image and generate metadata for Adobe Stock. Provide a JSON response with the following fields:

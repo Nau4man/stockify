@@ -15,44 +15,37 @@ const Toast = ({ message, type = 'info', duration = 4000, onClose, isDarkMode = 
   const getToastStyles = () => {
     switch (type) {
       case 'success':
-        return 'bg-green-500 text-white border-green-600';
+        return isDarkMode 
+          ? 'bg-green-600 text-white border-green-500' 
+          : 'bg-green-50 text-green-800 border-green-200';
       case 'error':
-        return 'bg-red-500 text-white border-red-600';
+        return isDarkMode 
+          ? 'bg-red-600 text-white border-red-500' 
+          : 'bg-red-50 text-red-800 border-red-200';
       case 'warning':
-        return 'bg-yellow-500 text-white border-yellow-600';
+        return isDarkMode 
+          ? 'bg-yellow-600 text-white border-yellow-500' 
+          : 'bg-yellow-50 text-yellow-800 border-yellow-200';
       case 'info':
       default:
-        return 'bg-blue-500 text-white border-blue-600';
+        return isDarkMode 
+          ? 'bg-blue-600 text-white border-blue-500' 
+          : 'bg-blue-50 text-blue-800 border-blue-200';
     }
   };
 
   const getIcon = () => {
+    const iconClass = isDarkMode ? "w-5 h-5 brightness-0 invert" : "w-5 h-5";
     switch (type) {
       case 'success':
-        return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        );
+        return <img src="/assets/icons/tick-circle.svg" alt="Success" className={`${iconClass} ${!isDarkMode ? 'text-green-600' : ''}`} />;
       case 'error':
-        return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        );
+        return <img src="/assets/icons/x-circle.svg" alt="Error" className={`${iconClass} ${!isDarkMode ? 'text-red-600' : ''}`} />;
       case 'warning':
-        return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-          </svg>
-        );
+        return <img src="/assets/icons/alert-circle.svg" alt="Warning" className={`${iconClass} ${!isDarkMode ? 'text-yellow-600' : ''}`} />;
       case 'info':
       default:
-        return (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        );
+        return <img src="/assets/icons/help-circle.svg" alt="Info" className={`${iconClass} ${!isDarkMode ? 'text-blue-600' : ''}`} />;
     }
   };
 
@@ -75,11 +68,9 @@ const Toast = ({ message, type = 'info', duration = 4000, onClose, isDarkMode = 
               setIsVisible(false);
               setTimeout(() => onClose && onClose(), 300);
             }}
-            className="inline-flex text-white hover:text-gray-200 focus:outline-none focus:text-gray-200 transition-colors duration-200"
+            className={`inline-flex ${isDarkMode ? 'text-white hover:text-gray-200 focus:text-gray-200' : 'text-gray-500 hover:text-gray-700 focus:text-gray-700'} focus:outline-none transition-colors duration-200`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <img src="/assets/icons/x.svg" alt="Close" className={`w-4 h-4 ${isDarkMode ? 'brightness-0 invert' : ''}`} />
           </button>
         </div>
       </div>

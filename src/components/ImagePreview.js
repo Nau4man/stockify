@@ -38,7 +38,8 @@ const ImagePreview = ({ images, onRemoveImage, onImageClick, onImageSelect, sele
 
   // Debug logging
   console.log('ImagePreview render:', {
-    imagesLength: images.length,
+    imagesLength: images?.length || 0,
+    images: images,
     currentImagesLength: currentImages.length,
     currentPage,
     totalPages,
