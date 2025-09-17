@@ -1,5 +1,88 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
+// Reusable field component for form editing - defined outside to prevent recreation
+const FormField = ({ 
+  fieldName, 
+  label, 
+  value, 
+  isEditable = true, 
+  isTextarea = false,
+  isEditing,
+  editValues,
+  onInputChange,
+  validateField,
+  validationRules,
+  targetPlatform,
+  isDarkMode
+}) => {
+  const displayValue = isEditing ? (editValues[fieldName] || '') : (value || '');
+  const validation = isEditing ? validateField(fieldName, displayValue) : { isValid: true, message: '' };
+  const hasError = !validation.isValid;
+
+  return (
+    <div>
+      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+        {label}
+        {isEditing && validationRules[targetPlatform]?.[fieldName]?.required && (
+          <span className="text-red-500 ml-1">*</span>
+        )}
+      </label>
+      {isEditing ? (
+        isTextarea ? (
+          <textarea
+            value={displayValue}
+            onChange={(e) => onInputChange(fieldName, e.target.value)}
+            className={`w-full text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700' : 'text-gray-900 bg-gray-50'} p-2 rounded border focus:ring-2 focus:border-transparent resize-none ${
+              hasError 
+                ? `${isDarkMode ? 'border-red-500' : 'border-red-300'} focus:ring-red-500` 
+                : displayValue && !hasError
+                  ? `${isDarkMode ? 'border-green-500' : 'border-green-300'} focus:ring-green-500`
+                  : `${isDarkMode ? 'border-gray-600' : 'border-gray-200'} focus:ring-blue-500`
+            }`}
+            rows={3}
+          />
+        ) : (
+          <input
+            type="text"
+            value={displayValue}
+            onChange={(e) => onInputChange(fieldName, e.target.value)}
+            className={`w-full text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700' : 'text-gray-900 bg-gray-50'} p-2 rounded border focus:ring-2 focus:border-transparent ${
+              hasError 
+                ? `${isDarkMode ? 'border-red-500' : 'border-red-300'} focus:ring-red-500` 
+                : displayValue && !hasError
+                  ? `${isDarkMode ? 'border-green-500' : 'border-green-300'} focus:ring-green-500`
+                  : `${isDarkMode ? 'border-gray-600' : 'border-gray-200'} focus:ring-blue-500`
+            }`}
+          />
+        )
+      ) : (
+        <div className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border`}>
+          <span className={displayValue ? '' : `${isDarkMode ? 'text-gray-500' : 'text-gray-400'} italic`}>
+            {displayValue || 'Empty'}
+          </span>
+        </div>
+      )}
+      {isEditing && (
+        <div className="mt-1">
+          {hasError ? (
+            <p className="text-xs text-red-500">
+              {validation.message}
+            </p>
+          ) : displayValue ? (
+            <p className="text-xs text-green-500">
+              ✓ {validationRules[targetPlatform]?.[fieldName]?.message || 'Valid'}
+            </p>
+          ) : (
+            <p className="text-xs text-gray-400">
+              {validationRules[targetPlatform]?.[fieldName]?.message || 'Enter value to validate'}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const MetadataPreview = ({
   metadata,
   isVisible,
@@ -16,121 +99,9 @@ const MetadataPreview = ({
   const [loadedImages, setLoadedImages] = useState(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState({});
-  // Keyboard navigation
-  const handleKeyDown = useCallback((e) => {
-    if (!isVisible || images.length === 0) return;
-
-    switch (e.key) {
-      case 'ArrowLeft':
-        e.preventDefault();
-        if (selectedImageIndex > 0 && onImageSelect) {
-          onImageSelect(selectedImageIndex - 1);
-        }
-        break;
-      case 'ArrowRight':
-        e.preventDefault();
-        if (selectedImageIndex < images.length - 1 && onImageSelect) {
-          onImageSelect(selectedImageIndex + 1);
-        }
-        break;
-      case 'Home':
-        e.preventDefault();
-        if (onImageSelect) {
-          onImageSelect(0);
-        }
-        break;
-      case 'End':
-        e.preventDefault();
-        if (onImageSelect) {
-          onImageSelect(images.length - 1);
-        }
-        break;
-      case 'Delete':
-        e.preventDefault();
-        if (onRemoveImage) {
-          onRemoveImage(selectedImageIndex);
-        }
-        break;
-      case 'Enter':
-      case ' ':
-        e.preventDefault();
-        if (onImageClick) {
-          onImageClick(selectedImageIndex);
-        }
-        break;
-      default:
-        break;
-    }
-  }, [isVisible, images.length, selectedImageIndex, onImageSelect, onImageClick, onRemoveImage]);
-
-  useEffect(() => {
-    if (isVisible) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => {
-        document.removeEventListener('keydown', handleKeyDown);
-      };
-    }
-  }, [isVisible, handleKeyDown]);
-
-  // Cache object URLs for faster thumbnail loading
-  const imageUrls = useMemo(() => {
-    return images.map(image => URL.createObjectURL(image));
-  }, [images]);
-
-  // Cleanup object URLs when component unmounts
-  useEffect(() => {
-    return () => {
-      imageUrls.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, [imageUrls]);
-
-  // Handle image load events
-  const handleImageLoad = useCallback((index) => {
-    setLoadedImages(prev => new Set(prev).add(index));
-  }, []);
-
-  const handleImageError = useCallback((index) => {
-    setLoadedImages(prev => new Set(prev).add(index));
-  }, []);
-
+  
   // Get the current metadata item based on selectedImageIndex
   const currentMetadata = metadata && Array.isArray(metadata) ? metadata[selectedImageIndex] : null;
-
-  // Inline editing functions
-  const handleEditForm = useCallback(() => {
-    if (!currentMetadata) return;
-    setIsEditing(true);
-    setEditValues({
-      description: currentMetadata.description || '',
-      keywords: currentMetadata.keywords || '',
-      categories: currentMetadata.categories || '',
-      editorial: currentMetadata.editorial || 'no'
-    });
-  }, [currentMetadata]);
-
-  const handleSaveForm = useCallback(() => {
-    if (onSave && currentMetadata) {
-      const updatedMetadata = {
-        ...currentMetadata,
-        ...editValues
-      };
-      onSave(updatedMetadata, selectedImageIndex);
-    }
-    setIsEditing(false);
-    setEditValues({});
-  }, [onSave, editValues, currentMetadata, selectedImageIndex]);
-
-  const handleCancelEdit = useCallback(() => {
-    setIsEditing(false);
-    setEditValues({});
-  }, []);
-
-  const handleInputChange = useCallback((fieldName, value) => {
-    setEditValues(prev => ({
-      ...prev,
-      [fieldName]: value
-    }));
-  }, []);
 
   // Platform-specific validation rules
   const validationRules = useMemo(() => ({
@@ -246,80 +217,134 @@ const MetadataPreview = ({
     };
   }, [validationRules, targetPlatform]);
 
+  // Inline editing functions
+  const handleEditForm = useCallback(() => {
+    if (!currentMetadata) return;
+    setIsEditing(true);
+    setEditValues({
+      description: currentMetadata.description || '',
+      keywords: currentMetadata.keywords || '',
+      categories: currentMetadata.categories || '',
+      editorial: currentMetadata.editorial || 'no'
+    });
+  }, [currentMetadata]);
+
+  const handleSaveForm = useCallback(() => {
+    if (onSave && currentMetadata) {
+      const updatedMetadata = {
+        ...currentMetadata,
+        ...editValues
+      };
+      onSave(updatedMetadata, selectedImageIndex);
+    }
+    setIsEditing(false);
+    setEditValues({});
+  }, [onSave, editValues, currentMetadata, selectedImageIndex]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setEditValues({});
+  }, []);
+
+  const handleInputChange = useCallback((fieldName, value) => {
+    setEditValues(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+  }, []);
+
+
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e) => {
+    if (!isVisible || images.length === 0) return;
+
+    // Don't handle keyboard events when user is typing in input fields
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+      return;
+    }
+
+    // Don't handle keyboard events when a modal is open (check for ImageModal with z-50)
+    if (document.querySelector('.z-50') || document.querySelector('[role="dialog"]') || document.querySelector('.modal')) {
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (selectedImageIndex > 0 && onImageSelect) {
+          onImageSelect(selectedImageIndex - 1);
+        }
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        if (selectedImageIndex < images.length - 1 && onImageSelect) {
+          onImageSelect(selectedImageIndex + 1);
+        }
+        break;
+      case 'Home':
+        e.preventDefault();
+        if (onImageSelect) {
+          onImageSelect(0);
+        }
+        break;
+      case 'End':
+        e.preventDefault();
+        if (onImageSelect) {
+          onImageSelect(images.length - 1);
+        }
+        break;
+      case 'Delete':
+        e.preventDefault();
+        if (onRemoveImage) {
+          onRemoveImage(selectedImageIndex);
+        }
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (onImageClick) {
+          onImageClick(selectedImageIndex);
+        }
+        break;
+      default:
+        break;
+    }
+  }, [isVisible, images.length, selectedImageIndex, onImageSelect, onImageClick, onRemoveImage]);
+
+  useEffect(() => {
+    if (isVisible) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isVisible, handleKeyDown]);
+
+  // Cache object URLs for faster thumbnail loading
+  const imageUrls = useMemo(() => {
+    return images.map(image => URL.createObjectURL(image));
+  }, [images]);
+
+  // Cleanup object URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      imageUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [imageUrls]);
+
+  // Handle image load events
+  const handleImageLoad = useCallback((index) => {
+    setLoadedImages(prev => new Set(prev).add(index));
+  }, []);
+
+  const handleImageError = useCallback((index) => {
+    setLoadedImages(prev => new Set(prev).add(index));
+  }, []);
+
   // Early returns after hooks
   if (!isVisible || !metadata || !Array.isArray(metadata)) return null;
 
   if (!currentMetadata) return null;
-
-  // Reusable field component for form editing
-  const FormField = ({ fieldName, label, value, isEditable = true, isTextarea = false }) => {
-    const displayValue = isEditing ? (editValues[fieldName] || '') : (value || '');
-    const validation = isEditing ? validateField(fieldName, displayValue) : { isValid: true, message: '' };
-    const hasError = !validation.isValid;
-
-    return (
-      <div>
-        <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-          {label}
-          {isEditing && validationRules[targetPlatform]?.[fieldName]?.required && (
-            <span className="text-red-500 ml-1">*</span>
-          )}
-        </label>
-        {isEditing ? (
-          isTextarea ? (
-            <textarea
-              value={displayValue}
-              onChange={(e) => handleInputChange(fieldName, e.target.value)}
-              className={`w-full text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700' : 'text-gray-900 bg-gray-50'} p-2 rounded border focus:ring-2 focus:border-transparent resize-none ${
-                hasError 
-                  ? `${isDarkMode ? 'border-red-500' : 'border-red-300'} focus:ring-red-500` 
-                  : displayValue && !hasError
-                    ? `${isDarkMode ? 'border-green-500' : 'border-green-300'} focus:ring-green-500`
-                    : `${isDarkMode ? 'border-gray-600' : 'border-gray-200'} focus:ring-blue-500`
-              }`}
-              rows={3}
-            />
-          ) : (
-            <input
-              type="text"
-              value={displayValue}
-              onChange={(e) => handleInputChange(fieldName, e.target.value)}
-              className={`w-full text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700' : 'text-gray-900 bg-gray-50'} p-2 rounded border focus:ring-2 focus:border-transparent ${
-                hasError 
-                  ? `${isDarkMode ? 'border-red-500' : 'border-red-300'} focus:ring-red-500` 
-                  : displayValue && !hasError
-                    ? `${isDarkMode ? 'border-green-500' : 'border-green-300'} focus:ring-green-500`
-                    : `${isDarkMode ? 'border-gray-600' : 'border-gray-200'} focus:ring-blue-500`
-              }`}
-            />
-          )
-        ) : (
-          <div className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border`}>
-            <span className={displayValue ? '' : `${isDarkMode ? 'text-gray-500' : 'text-gray-400'} italic`}>
-              {displayValue || 'Empty'}
-            </span>
-          </div>
-        )}
-        {isEditing && (
-          <div className="mt-1">
-            {hasError ? (
-              <p className="text-xs text-red-500">
-                {validation.message}
-              </p>
-            ) : displayValue ? (
-              <p className="text-xs text-green-500">
-                ✓ {validationRules[targetPlatform]?.[fieldName]?.message || 'Valid'}
-              </p>
-            ) : (
-              <p className="text-xs text-gray-400">
-                {validationRules[targetPlatform]?.[fieldName]?.message || 'Enter value to validate'}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div className={`w-full ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
@@ -576,24 +601,52 @@ const MetadataPreview = ({
               label="Description"
               value={currentMetadata.description}
               isTextarea={true}
+              isEditing={isEditing}
+              editValues={editValues}
+              onInputChange={handleInputChange}
+              validateField={validateField}
+              validationRules={validationRules}
+              targetPlatform={targetPlatform}
+              isDarkMode={isDarkMode}
             />
             
             <FormField
               fieldName="keywords"
               label="Keywords"
               value={currentMetadata.keywords}
+              isEditing={isEditing}
+              editValues={editValues}
+              onInputChange={handleInputChange}
+              validateField={validateField}
+              validationRules={validationRules}
+              targetPlatform={targetPlatform}
+              isDarkMode={isDarkMode}
             />
             
             <FormField
               fieldName="categories"
               label="Categories"
               value={currentMetadata.categories}
+              isEditing={isEditing}
+              editValues={editValues}
+              onInputChange={handleInputChange}
+              validateField={validateField}
+              validationRules={validationRules}
+              targetPlatform={targetPlatform}
+              isDarkMode={isDarkMode}
             />
             
             <FormField
               fieldName="editorial"
               label="Editorial"
               value={currentMetadata.editorial}
+              isEditing={isEditing}
+              editValues={editValues}
+              onInputChange={handleInputChange}
+              validateField={validateField}
+              validationRules={validationRules}
+              targetPlatform={targetPlatform}
+              isDarkMode={isDarkMode}
             />
             
             <div>
