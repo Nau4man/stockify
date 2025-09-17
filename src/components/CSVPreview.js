@@ -21,8 +21,8 @@ const CSVPreview = ({ metadata, isVisible, onClose, onDownload, isDarkMode = fal
                 CSV Preview
               </h2>
               <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
-                Preview of {validMetadata.length} image{validMetadata.length !== 1 ? 's' : ''} ready for download
-                {errorCount > 0 && ` (${errorCount} failed)`}
+                CSV file containing metadata for {validMetadata.length} successfully processed image{validMetadata.length !== 1 ? 's' : ''}
+                {errorCount > 0 && ` (${errorCount} image${errorCount !== 1 ? 's' : ''} failed to process)`}
               </p>
             </div>
             <button
@@ -130,17 +130,7 @@ const CSVPreview = ({ metadata, isVisible, onClose, onDownload, isDarkMode = fal
         )}
         
         <div className="p-6 border-t">
-          <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            <p className="mb-2">
-              This preview shows the first few rows of your CSV file. 
-              The complete file will contain all {validMetadata.length} processed image{validMetadata.length !== 1 ? 's' : ''}.
-            </p>
-            <p>
-              <strong>Note:</strong> Mature Content and Illustration are automatically set to "no" for stock platform compatibility.
-            </p>
-          </div>
-          
-          <div className="flex justify-end space-x-3 mt-4">
+          <div className="flex justify-end space-x-3">
             <button
               onClick={onClose}
               className={`px-4 py-2 ${isDarkMode ? 'text-gray-300 bg-gray-700 border-gray-600 hover:bg-gray-600' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'} rounded-lg transition-colors duration-200`}

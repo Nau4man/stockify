@@ -1,19 +1,15 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import FileUpload from './components/FileUpload';
-import ImagePreview from './components/ImagePreview';
 import ProgressBar from './components/ProgressBar';
 import MetadataPreview from './components/MetadataPreview';
 import ImageModal from './components/ImageModal';
-import MetadataEditor from './components/MetadataEditor';
 import CSVPreview from './components/CSVPreview';
-import StatsPanel from './components/StatsPanel';
 import FailedImages from './components/FailedImages';
-import ModelSelector from './components/ModelSelector';
-import PlatformSelector from './components/PlatformSelector';
 import ToastContainer from './components/ToastContainer';
 import { generateMultipleImageMetadata, retryImageMetadata, DEFAULT_MODEL, GEMINI_MODELS } from './utils/geminiApi';
 import { generateCSV, downloadCSV, validateMetadata } from './utils/csvGenerator';
 import { getRateLimitedModels } from './utils/rateLimitTracker';
+import { getPlatformConfig, getAvailablePlatforms } from './utils/platformConfig';
 import debugEnv from './debug-env';
 
 function App() {
@@ -26,16 +22,10 @@ function App() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [editingMetadata, setEditingMetadata] = useState(null);
   const [showCSVPreview, setShowCSVPreview] = useState(false);
   const [retryingImages, setRetryingImages] = useState(new Set());
   const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
   const [selectedPlatform, setSelectedPlatform] = useState('shutterstock');
-  
-  // Debug platform state changes
-  useEffect(() => {
-    console.log('Platform changed to:', selectedPlatform);
-  }, [selectedPlatform]);
   const [rateLimitNotification, setRateLimitNotification] = useState(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [toasts, setToasts] = useState([]);
@@ -45,6 +35,106 @@ function App() {
   const [showDocumentation, setShowDocumentation] = useState(false);
   const [showApiConfiguration, setShowApiConfiguration] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showPlatformSelector, setShowPlatformSelector] = useState(false);
+  const [showPlatformInfoModal, setShowPlatformInfoModal] = useState(false);
+  const [useDemoData, setUseDemoData] = useState(false);
+  
+  // Debug platform state changes
+  useEffect(() => {
+    console.log('Platform changed to:', selectedPlatform);
+  }, [selectedPlatform]);
+
+  // Demo data generation for development
+  const generateDemoMetadata = useCallback((imageFiles) => {
+    const demoData = {
+      shutterstock: [
+        {
+          filename: "beautiful-sunset-landscape.jpg",
+          description: "Stunning golden hour sunset over rolling hills with dramatic clouds",
+          keywords: "sunset, landscape, golden hour, hills, clouds, nature, sky, dramatic, beautiful, peaceful, outdoor, scenic, horizon, warm light, countryside",
+          categories: "Nature, Landscapes",
+          editorial: "no",
+          matureContent: "no",
+          illustration: "no"
+        },
+        {
+          filename: "modern-office-workspace.jpg",
+          description: "Clean modern office space with laptop and coffee cup on desk",
+          keywords: "office, workspace, modern, laptop, coffee, desk, business, work, technology, clean, minimalist, professional, productivity, corporate",
+          categories: "Business/Finance, Technology",
+          editorial: "no",
+          matureContent: "no",
+          illustration: "no"
+        },
+        {
+          filename: "happy-family-picnic.jpg",
+          description: "Joyful family enjoying outdoor picnic in sunny park",
+          keywords: "family, picnic, outdoor, park, happy, children, parents, food, nature, fun, together, sunny, grass, trees, lifestyle",
+          categories: "People, Lifestyle",
+          editorial: "no",
+          matureContent: "no",
+          illustration: "no"
+        }
+      ],
+      adobe_stock: [
+        {
+          filename: "urban-cityscape-night.jpg",
+          title: "Modern city skyline at night with illuminated buildings",
+          keywords: "city, skyline, night, urban, buildings, lights, modern, architecture, downtown, metropolis, neon, street, urban life",
+          category: "2",
+          releases: "",
+          matureContent: "no",
+          illustration: "no"
+        },
+        {
+          filename: "healthy-salad-bowl.jpg",
+          title: "Fresh green salad with vegetables and dressing",
+          keywords: "salad, healthy, food, vegetables, fresh, green, nutrition, diet, organic, restaurant, meal, lunch, dinner",
+          category: "7",
+          releases: "",
+          matureContent: "no",
+          illustration: "no"
+        },
+        {
+          filename: "athlete-running-track.jpg",
+          title: "Athletic runner on outdoor track during training",
+          keywords: "athlete, running, track, sports, fitness, training, exercise, outdoor, speed, movement, health, competition, athletic",
+          category: "18",
+          releases: "Model release available",
+          matureContent: "no",
+          illustration: "no"
+        }
+      ]
+    };
+
+    return imageFiles.map((file, index) => {
+      const platformData = demoData[selectedPlatform] || demoData.shutterstock;
+      const demoItem = platformData[index % platformData.length];
+      return {
+        ...demoItem,
+        filename: file.name,
+        originalFile: file
+      };
+    });
+  }, [selectedPlatform]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showModelSelector && !event.target.closest('.model-selector-container')) {
+        setShowModelSelector(false);
+      }
+      if (showPlatformSelector && !event.target.closest('.platform-selector-container')) {
+        setShowPlatformSelector(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showModelSelector, showPlatformSelector]);
   const imagesRef = useRef([]);
   const fileInputRef = useRef(null);
   
@@ -168,13 +258,6 @@ function App() {
     setError(null); // Clear any previous errors when switching models
   }, []);
 
-  // Handle image selection for metadata preview
-  const handleImageSelect = useCallback((index) => {
-    // Ensure the index is valid and within bounds
-    if (index >= 0 && index < images.length) {
-      setSelectedImageIndex(index);
-    }
-  }, [images.length]);
 
   // Remove individual image and its corresponding metadata
   const handleRemoveImage = useCallback((index) => {
@@ -190,7 +273,6 @@ function App() {
       
       return newMetadata;
     });
-    setShowPreview(false);
     
     // Adjust selected image index if necessary
     setSelectedImageIndex(prevIndex => {
@@ -258,22 +340,38 @@ function App() {
     setProgress({ current: 0, total: validImages.length, currentFile: '' });
 
     try {
-      console.log('Calling generateMultipleImageMetadata with:', {
-        validImages: validImages.length,
-        selectedModel,
-        availableModels: Object.keys(GEMINI_MODELS),
-        selectedPlatform
-      });
-      
-      const result = await generateMultipleImageMetadata(
-        validImages,
-        (current, total, currentFile) => {
-          setProgress({ current, total, currentFile });
-        },
-        selectedModel,
-        Object.keys(GEMINI_MODELS),
-        selectedPlatform
-      );
+      let result;
+
+      if (useDemoData) {
+        // Use demo data for development
+        console.log('Using demo data for development...');
+        
+        // Simulate processing delay
+        for (let i = 0; i < validImages.length; i++) {
+          setProgress({ current: i + 1, total: validImages.length, currentFile: validImages[i].name });
+          await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay per image
+        }
+        
+        result = generateDemoMetadata(validImages);
+      } else {
+        // Use real API calls
+        console.log('Calling generateMultipleImageMetadata with:', {
+          validImages: validImages.length,
+          selectedModel,
+          availableModels: Object.keys(GEMINI_MODELS),
+          selectedPlatform
+        });
+        
+        result = await generateMultipleImageMetadata(
+          validImages,
+          (current, total, currentFile) => {
+            setProgress({ current, total, currentFile });
+          },
+          selectedModel,
+          Object.keys(GEMINI_MODELS),
+          selectedPlatform
+        );
+      }
 
       setMetadata(result);
       setShowPreview(true);
@@ -285,7 +383,10 @@ function App() {
         addToast(`Processing completed with ${errors.length} error(s)`, 'error', 6000);
         setError(`Processing completed with ${errors.length} error(s): ${errorSummary}`);
       } else {
-        addToast('All images processed successfully!', 'success');
+        const message = useDemoData 
+          ? 'Demo data generated successfully!'
+          : 'All images processed successfully!';
+        addToast(message, 'success');
       }
 
       // Show success message
@@ -317,14 +418,28 @@ function App() {
       setIsProcessing(false);
       setProgress({ current: 0, total: 0, currentFile: '' });
     }
-  }, [images, addToast, selectedModel, selectedPlatform]);
+  }, [images, addToast, selectedModel, selectedPlatform, useDemoData, generateDemoMetadata]);
+
 
   // Handle image click for modal
-  const handleImageClick = useCallback((image) => {
-    const imageIndex = images.findIndex(img => img === image);
-    setSelectedImage(image);
-    setCurrentImageIndex(imageIndex >= 0 ? imageIndex : 0);
-    setShowImageModal(true);
+  const handleImageClick = useCallback((imageOrIndex) => {
+    let image, imageIndex;
+    
+    if (typeof imageOrIndex === 'number') {
+      // If it's an index, get the image from the array
+      imageIndex = imageOrIndex;
+      image = images[imageIndex];
+    } else {
+      // If it's an image object, find its index
+      image = imageOrIndex;
+      imageIndex = images.findIndex(img => img === image);
+    }
+    
+    if (image && imageIndex >= 0) {
+      setSelectedImage(image);
+      setCurrentImageIndex(imageIndex);
+      setShowImageModal(true);
+    }
   }, [images]);
 
   // Handle image navigation in modal
@@ -335,21 +450,24 @@ function App() {
     }
   }, [images]);
 
-  // Handle metadata edit
+  // Handle metadata edit (now handled by inline editing)
   const handleEditMetadata = useCallback((metadataItem) => {
-    // Only allow editing if metadata is valid and has no errors
-    if (metadataItem && !metadataItem.error && metadataItem.filename) {
-      setEditingMetadata(metadataItem);
-    } else {
-      setError('Cannot edit metadata for this image. It may have processing errors.');
-    }
+    // This function is kept for compatibility but inline editing handles everything
+    console.log('Edit metadata requested for:', metadataItem);
   }, []);
 
-  const handleSaveMetadata = useCallback((updatedMetadata) => {
-    setMetadata(prev => prev.map(item => 
-      item.filename === updatedMetadata.filename ? updatedMetadata : item
-    ));
-    setEditingMetadata(null);
+  const handleSaveMetadata = useCallback((updatedMetadata, index = null) => {
+    if (index !== null) {
+      // Update specific index (for inline editing)
+      setMetadata(prev => prev.map((item, i) => 
+        i === index ? updatedMetadata : item
+      ));
+    } else {
+      // Update by filename (fallback for compatibility)
+      setMetadata(prev => prev.map(item => 
+        item.filename === updatedMetadata.filename ? updatedMetadata : item
+      ));
+    }
   }, []);
 
   // Show CSV preview
@@ -598,11 +716,151 @@ function App() {
           {/* Navigation Bar */}
           <div className={`border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-100'} py-3`}>
             <nav className="flex items-center justify-end">
+              
               <div className="flex items-center space-x-4">
-                {/* Model Status */}
-                <div className={`flex items-center space-x-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>Model: {GEMINI_MODELS[selectedModel]?.name || selectedModel}</span>
+                {/* Demo Data Toggle */}
+                <div className="flex items-center space-x-2">
+                  <label className={`flex items-center space-x-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                    <input
+                      type="checkbox"
+                      checked={useDemoData}
+                      onChange={(e) => setUseDemoData(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <span>Demo Data</span>
+                  </label>
+                </div>
+
+                {/* Platform Selector */}
+                <div className="relative platform-selector-container">
+                  <button
+                    onClick={() => setShowPlatformSelector(!showPlatformSelector)}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white hover:border-blue-400' 
+                        : 'bg-white border-gray-300 text-gray-900 hover:border-blue-500'
+                    }`}
+                  >
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="text-sm font-medium">{getPlatformConfig(selectedPlatform)?.name || selectedPlatform}</span>
+                    <svg className={`w-4 h-4 transition-transform duration-200 ${showPlatformSelector ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Platform Dropdown */}
+                  {showPlatformSelector && (
+                    <div className={`absolute right-0 top-full mt-1 w-64 rounded-lg border shadow-lg z-50 ${
+                      isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+                    }`}>
+                      <div className="p-1">
+                        {getAvailablePlatforms().map((platform) => (
+                          <button
+                            key={platform.id}
+                            onClick={() => {
+                              setSelectedPlatform(platform.id);
+                              setShowPlatformSelector(false);
+                            }}
+                            className={`w-full px-3 py-2 text-left rounded-md transition-colors duration-200 ${
+                              selectedPlatform === platform.id 
+                                ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white')
+                                : (isDarkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-50 text-gray-900')
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium text-sm">{platform.name}</div>
+                                <div className={`text-xs ${selectedPlatform === platform.id ? 'text-white/80' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`}>
+                                  {platform.description}
+                                </div>
+                              </div>
+                              {selectedPlatform === platform.id && (
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                        
+                        {/* Help Button */}
+                        <div className="border-t border-gray-200 dark:border-gray-600 mt-1 pt-1">
+                          <button
+                            onClick={() => {
+                              setShowPlatformInfoModal(true);
+                              setShowPlatformSelector(false);
+                            }}
+                            className={`w-full px-3 py-2 text-left rounded-md transition-colors duration-200 flex items-center gap-2 ${
+                              isDarkMode 
+                                ? 'hover:bg-gray-700 text-gray-300 hover:text-white' 
+                                : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-sm font-medium">Platform Requirements</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* AI Model Selector */}
+                <div className="relative model-selector-container">
+                  <button
+                    onClick={() => setShowModelSelector(!showModelSelector)}
+                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-white hover:border-blue-400' 
+                        : 'bg-white border-gray-300 text-gray-900 hover:border-blue-500'
+                    }`}
+                  >
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium">{GEMINI_MODELS[selectedModel]?.name || selectedModel}</span>
+                    <svg className={`w-4 h-4 transition-transform duration-200 ${showModelSelector ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Model Dropdown */}
+                  {showModelSelector && (
+                    <div className={`absolute right-0 top-full mt-1 w-64 rounded-lg border shadow-lg z-50 ${
+                      isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+                    }`}>
+                      <div className="p-1">
+                        {Object.entries(GEMINI_MODELS).map(([key, model]) => (
+                          <button
+                            key={key}
+                            onClick={() => {
+                              handleModelChange(key);
+                              setShowModelSelector(false);
+                            }}
+                            className={`w-full px-3 py-2 text-left rounded-md transition-colors duration-200 ${
+                              selectedModel === key 
+                                ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white')
+                                : (isDarkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-50 text-gray-900')
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium text-sm">{model.name}</div>
+                                <div className={`text-xs ${selectedModel === key ? 'text-white/80' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`}>
+                                  {model.dailyLimit} requests/day
+                                </div>
+                              </div>
+                              {selectedModel === key && (
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </nav>
@@ -633,7 +891,7 @@ function App() {
             />
             
             {images.length > 0 && (
-              <div className="mt-6 flex gap-4">
+              <div className="mt-6">
                 <button
                   onClick={handleProcessImages}
                   disabled={isProcessing}
@@ -652,14 +910,6 @@ function App() {
                       <span className="font-semibold">Process Images with AI</span>
                     </>
                   )}
-                </button>
-                
-                <button
-                  onClick={handleClearAll}
-                  disabled={isProcessing}
-                  className={`px-6 py-3 ${isDarkMode ? 'bg-gray-700/80 text-gray-300 hover:bg-gray-600' : 'bg-white/80 text-gray-700 hover:bg-white'} backdrop-blur-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 border ${isDarkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300'} shadow-md hover:shadow-lg`}
-                >
-                  <span className="font-medium">Clear All</span>
                 </button>
               </div>
             )}
@@ -704,53 +954,64 @@ function App() {
             isDarkMode={isDarkMode}
           />
 
-          {/* Image Preview */}
-          <div id="preview" className="scroll-mt-32">
-            <ImagePreview 
-            images={images}
-            onRemoveImage={handleRemoveImage}
-            onImageClick={handleImageClick}
-            onImageSelect={handleImageSelect}
-            selectedImageIndex={selectedImageIndex}
-            isDarkMode={isDarkMode}
-          />
-          </div>
-
-          {/* Model Selection - Only show when images are uploaded */}
+          {/* Image Management Summary - Only show if images are uploaded */}
           {images.length > 0 && (
-            <div className={`${isDarkMode ? 'bg-gray-800/70 border-gray-700/20' : 'bg-white/70 border-white/20'} backdrop-blur-sm rounded-2xl shadow-xl border p-8`}>
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
+            <div id="preview" className={`${isDarkMode ? 'bg-gray-800/70 border-gray-700/20' : 'bg-white/70 border-white/20'} backdrop-blur-sm rounded-2xl shadow-xl border p-6 scroll-mt-32`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {images.length} Image{images.length !== 1 ? 's' : ''} Uploaded
+                    </h2>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {metadata.length > 0 
+                        ? `${metadata.filter(item => !item.error).length} processed successfully`
+                        : 'Click "Process Images with AI" to generate metadata'
+                      }
+                    </p>
+                  </div>
                 </div>
-                <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>AI Model Configuration</h2>
+                
+                <div className="flex items-center space-x-3">
+                  {metadata.length > 0 && metadata.some(item => !item.error) && (
+                    <button
+                      onClick={() => setShowPreview(!showPreview)}
+                      className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
+                        showPreview 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600' 
+                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-sm font-medium">
+                        {showPreview ? 'Hide Metadata' : 'View & Edit Metadata'}
+                      </span>
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={handleClearAll}
+                    disabled={isProcessing}
+                    className={`px-4 py-2 rounded-lg border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600' 
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="text-sm font-medium">Clear All</span>
+                  </button>
+                </div>
               </div>
-              <PlatformSelector 
-                selectedPlatform={selectedPlatform}
-                onPlatformChange={setSelectedPlatform}
-                disabled={isProcessing}
-                isDarkMode={isDarkMode}
-              />
-              
-              <ModelSelector 
-                selectedModel={selectedModel}
-                onModelChange={handleModelChange}
-                disabled={isProcessing}
-                isDarkMode={isDarkMode}
-              />
             </div>
           )}
 
-          {/* Statistics Panel */}
-          {metadata.length > 0 && (
-            <StatsPanel 
-              metadata={metadata}
-              isVisible={metadata.length > 0}
-              isDarkMode={isDarkMode}
-            />
-          )}
+
 
           {/* Failed Images with Retry Options */}
           {metadata.length > 0 && metadata.some(item => item.error) && (
@@ -765,18 +1026,20 @@ function App() {
             />
           )}
 
-          {/* Metadata Preview - Only show if there are successful images */}
-          {showPreview && metadata.length > 0 && metadata.some(item => !item.error) && (
+          {/* Metadata Preview - Only show if there are images and user wants to see it */}
+          {showPreview && images.length > 0 && (
             <MetadataPreview 
-              metadata={{
-                ...metadata[selectedImageIndex], 
-                totalImages: metadata.filter(item => !item.error).length,
-                selectedImageIndex: selectedImageIndex,
-                selectedImageName: images[selectedImageIndex]?.name || 'Unknown'
-              }}
+              metadata={metadata}
               isVisible={showPreview}
               onEdit={handleEditMetadata}
+              onSave={handleSaveMetadata}
               isDarkMode={isDarkMode}
+              images={images}
+              selectedImageIndex={selectedImageIndex}
+              onImageSelect={setSelectedImageIndex}
+              selectedPlatform={selectedPlatform}
+              onRemoveImage={handleRemoveImage}
+              onImageClick={handleImageClick}
             />
           )}
 
@@ -793,7 +1056,7 @@ function App() {
                   Download CSV
                 </h2>
               </div>
-              <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} mb-4`}>
+              <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-600'} mb-6`}>
                 Your stock photo metadata CSV file is ready for download. 
                 This file contains metadata for {metadata.filter(item => !item.error).length} successful image{metadata.filter(item => !item.error).length !== 1 ? 's' : ''}.
                 {metadata.some(item => item.error) && (
@@ -802,6 +1065,42 @@ function App() {
                   </span>
                 )}
               </p>
+
+              {/* Processing Summary */}
+              <div className={`${isDarkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border rounded-xl p-4 mb-6`}>
+                <h3 className={`text-sm font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-700'} mb-3 flex items-center gap-2`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Processing Summary
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-green-600">
+                      {metadata.filter(item => !item.error).length}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Successful</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-red-600">
+                      {metadata.filter(item => item.error).length}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Failed</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-blue-600">
+                      {getPlatformConfig(selectedPlatform)?.name || selectedPlatform}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Platform</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-purple-600">
+                      {GEMINI_MODELS[selectedModel]?.name || selectedModel}
+                    </div>
+                    <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>AI Model</div>
+                  </div>
+                </div>
+              </div>
               <div className="flex gap-4">
                 <button
                   onClick={handleShowCSVPreview}
@@ -1089,13 +1388,6 @@ function App() {
         isDarkMode={isDarkMode}
       />
 
-      <MetadataEditor
-        metadata={editingMetadata}
-        isVisible={!!editingMetadata}
-        onSave={handleSaveMetadata}
-        onCancel={() => setEditingMetadata(null)}
-        isDarkMode={isDarkMode}
-      />
 
       <CSVPreview
         metadata={metadata}
@@ -1931,6 +2223,204 @@ const GEMINI_API_KEY = 'AIzaSyB...';`}
                 >
                   I'm Ready
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Platform Info Modal */}
+      {showPlatformInfoModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => e.target === e.currentTarget && setShowPlatformInfoModal(false)}
+        >
+          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden`}>
+            <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      {getPlatformConfig(selectedPlatform)?.name} Requirements
+                    </h2>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-1`}>
+                      Detailed platform specifications and CSV format information
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPlatformInfoModal(false)}
+                  className={`p-2 ${isDarkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'} rounded-lg transition-colors duration-200`}
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <div className="space-y-6">
+                {/* Platform Information */}
+                <div className={`p-6 ${isDarkMode ? 'bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 border-gray-600' : 'bg-gradient-to-br from-white via-gray-50 to-white border-gray-200'} border-2 rounded-3xl shadow-xl backdrop-blur-sm`}>
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg ring-4 ring-white/10">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <h4 className={`font-bold text-xl ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {getPlatformConfig(selectedPlatform)?.name} Format
+                        </h4>
+                        <div className={`px-3 py-1 rounded-full text-xs font-semibold ${isDarkMode ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                          Optimized
+                        </div>
+                      </div>
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} mb-4 leading-relaxed`}>
+                        {getPlatformConfig(selectedPlatform)?.description}
+                      </p>
+                      
+                      {/* CSV Headers */}
+                      <div className="mt-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <svg className={`w-4 h-4 ${isDarkMode ? 'opacity-60' : 'opacity-70'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                          </svg>
+                          <p className={`text-sm font-bold ${isDarkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                            CSV Headers ({getPlatformConfig(selectedPlatform)?.csvHeaders.length})
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {getPlatformConfig(selectedPlatform)?.csvHeaders.map((header, index) => (
+                            <span 
+                              key={index}
+                              className={`px-3 py-2 text-xs font-semibold rounded-xl transition-all duration-200 hover:scale-105 ${
+                                isDarkMode 
+                                  ? 'bg-gradient-to-r from-gray-700 to-gray-600 text-gray-200 border border-gray-500 hover:from-gray-600 hover:to-gray-500 hover:shadow-lg' 
+                                  : 'bg-gradient-to-r from-gray-100 to-gray-50 text-gray-700 border border-gray-300 hover:from-gray-200 hover:to-gray-100 hover:shadow-md'
+                              }`}
+                            >
+                              {header}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Platform-specific requirements */}
+                {selectedPlatform === 'adobe_stock' && (
+                  <div className={`p-6 ${isDarkMode ? 'bg-gradient-to-br from-amber-900/20 via-orange-900/15 to-red-900/10 border-amber-500/50' : 'bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 border-amber-300'} border-2 rounded-2xl shadow-lg backdrop-blur-sm`}>
+                    <div className="flex items-start gap-4">
+                      <div className={`w-10 h-10 ${isDarkMode ? 'bg-gradient-to-br from-amber-600 to-orange-600' : 'bg-gradient-to-br from-amber-500 to-orange-500'} rounded-2xl flex items-center justify-center shadow-lg ring-4 ring-white/10 flex-shrink-0`}>
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3">
+                          <p className={`text-sm font-bold ${isDarkMode ? 'text-amber-200' : 'text-amber-800'}`}>
+                            Adobe Stock Requirements
+                          </p>
+                          <div className={`px-2 py-1 rounded-full text-xs font-semibold ${isDarkMode ? 'bg-amber-600/20 text-amber-300' : 'bg-amber-100 text-amber-700'}`}>
+                            Creative
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-amber-800/30' : 'bg-amber-100/50'} border ${isDarkMode ? 'border-amber-600/30' : 'border-amber-200'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                              <span className={`text-xs font-semibold ${isDarkMode ? 'text-amber-200' : 'text-amber-800'}`}>Title</span>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>Max 200 characters</p>
+                          </div>
+                          <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-amber-800/30' : 'bg-amber-100/50'} border ${isDarkMode ? 'border-amber-600/30' : 'border-amber-200'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                              <span className={`text-xs font-semibold ${isDarkMode ? 'text-amber-200' : 'text-amber-800'}`}>Keywords</span>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>Max 49 keywords</p>
+                          </div>
+                          <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-amber-800/30' : 'bg-amber-100/50'} border ${isDarkMode ? 'border-amber-600/30' : 'border-amber-200'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                              <span className={`text-xs font-semibold ${isDarkMode ? 'text-amber-200' : 'text-amber-800'}`}>Category</span>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>Numeric code (1-21)</p>
+                          </div>
+                          <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-amber-800/30' : 'bg-amber-100/50'} border ${isDarkMode ? 'border-amber-600/30' : 'border-amber-200'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                              <span className={`text-xs font-semibold ${isDarkMode ? 'text-amber-200' : 'text-amber-800'}`}>Optional</span>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-amber-100' : 'text-amber-700'}`}>All except Filename</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {selectedPlatform === 'shutterstock' && (
+                  <div className={`p-6 ${isDarkMode ? 'bg-gradient-to-br from-blue-900/20 via-indigo-900/15 to-purple-900/10 border-blue-500/50' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-blue-300'} border-2 rounded-2xl shadow-lg backdrop-blur-sm`}>
+                    <div className="flex items-start gap-4">
+                      <div className={`w-10 h-10 ${isDarkMode ? 'bg-gradient-to-br from-blue-600 to-indigo-600' : 'bg-gradient-to-br from-blue-500 to-indigo-500'} rounded-2xl flex items-center justify-center shadow-lg ring-4 ring-white/10 flex-shrink-0`}>
+                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-3">
+                          <p className={`text-sm font-bold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>
+                            Shutterstock Requirements
+                          </p>
+                          <div className={`px-2 py-1 rounded-full text-xs font-semibold ${isDarkMode ? 'bg-blue-600/20 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+                            Editorial
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-800/30' : 'bg-blue-100/50'} border ${isDarkMode ? 'border-blue-600/30' : 'border-blue-200'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className={`text-xs font-semibold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>Description</span>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-blue-100' : 'text-blue-700'}`}>6-12 words</p>
+                          </div>
+                          <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-800/30' : 'bg-blue-100/50'} border ${isDarkMode ? 'border-blue-600/30' : 'border-blue-200'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className={`text-xs font-semibold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>Keywords</span>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-blue-100' : 'text-blue-700'}`}>7-50 keywords</p>
+                          </div>
+                          <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-800/30' : 'bg-blue-100/50'} border ${isDarkMode ? 'border-blue-600/30' : 'border-blue-200'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className={`text-xs font-semibold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>Categories</span>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-blue-100' : 'text-blue-700'}`}>1-2 from official list</p>
+                          </div>
+                          <div className={`p-3 rounded-xl ${isDarkMode ? 'bg-blue-800/30' : 'bg-blue-100/50'} border ${isDarkMode ? 'border-blue-600/30' : 'border-blue-200'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className={`text-xs font-semibold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>Editorial</span>
+                            </div>
+                            <p className={`text-xs ${isDarkMode ? 'text-blue-100' : 'text-blue-700'}`}>Yes/No based on content</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

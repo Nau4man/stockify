@@ -11,6 +11,15 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
     }
   }, [isOpen, image]);
 
+  const handleImageLoad = () => {
+    setImageLoaded(true);
+  };
+
+  const handleImageError = () => {
+    setImageError(true);
+    setImageLoaded(false);
+  };
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e) => {
     if (!isOpen || !images.length) return;
@@ -59,15 +68,6 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
   }, [isOpen, handleKeyDown]);
 
   if (!isOpen || !image) return null;
-
-  const handleImageLoad = () => {
-    setImageLoaded(true);
-  };
-
-  const handleImageError = () => {
-    setImageError(true);
-    setImageLoaded(false);
-  };
 
   return (
     <div 
@@ -131,7 +131,9 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
               onClick={() => onNavigate && onNavigate(currentIndex - 1)}
                   className={`absolute left-6 top-1/2 transform -translate-y-1/2 z-20 p-4 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 hover:text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900'} rounded-2xl transition-all duration-200 border ${isDarkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300'} shadow-sm group`}
             >
-              <img src="/assets/icons/arrow-upload.svg" alt="Previous" className="w-6 h-6 group-hover:-translate-x-1 transition-transform duration-200 rotate-90" />
+              <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
             </button>
           )}
           
@@ -141,7 +143,9 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
               onClick={() => onNavigate && onNavigate(currentIndex + 1)}
                   className={`absolute right-6 top-1/2 transform -translate-y-1/2 z-20 p-4 ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200 hover:text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900'} rounded-2xl transition-all duration-200 border ${isDarkMode ? 'border-gray-600 hover:border-gray-500' : 'border-gray-200 hover:border-gray-300'} shadow-sm group`}
             >
-              <img src="/assets/icons/arrow-download.svg" alt="Next" className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-200 rotate-90" />
+              <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </button>
           )}
         </>
@@ -150,16 +154,10 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
       {/* Full-Screen Image Container */}
       <div className="flex-1 relative overflow-hidden">
         {!imageLoaded && !imageError && (
-          <div className={`absolute inset-0 flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <div className="flex flex-col items-center space-y-6">
-              <div className="relative">
-                <div className="w-16 h-16 border-4 border-gray-200 rounded-full"></div>
-                <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-blue-500 rounded-full animate-spin"></div>
-              </div>
-              <div className="text-center">
-                <p className={`${isDarkMode ? 'text-gray-200' : 'text-gray-700'} text-lg font-medium`}>Loading image...</p>
-                <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} text-sm mt-1`}>Preparing high-quality preview</p>
-              </div>
+          <div className={`absolute inset-0 flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-white'} z-20`}>
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-gray-300 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-blue-500 rounded-full animate-spin"></div>
             </div>
           </div>
         )}
@@ -186,7 +184,6 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
               onError={handleImageError}
               style={{ 
                 opacity: imageLoaded ? 1 : 0,
-                transition: 'opacity 0.5s ease-in-out',
                 filter: 'drop-shadow(0 25px 50px rgba(0, 0, 0, 0.5))'
               }}
             />
@@ -194,22 +191,6 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
         )}
       </div>
       
-      {/* Floating Action Bar */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 p-6">
-        <div className="flex items-center justify-center">
-              <div className={`flex items-center space-x-3 ${isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'} rounded-2xl px-6 py-4 border shadow-sm`}>
-                <button className={`p-3 ${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-200 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'} rounded-xl transition-all duration-200 group`}>
-                  <img src="/assets/icons/arrow-download.svg" alt="Download" className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
-                </button>
-                <button className={`p-3 ${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-200 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'} rounded-xl transition-all duration-200 group`}>
-                  <img src="/assets/icons/refresh.svg" alt="Share" className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
-                </button>
-                <button className={`p-3 ${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-200 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'} rounded-xl transition-all duration-200 group`}>
-                  <img src="/assets/icons/love.svg" alt="Like" className="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
-                </button>
-              </div>
-        </div>
-      </div>
       </div>
     </div>
   );
