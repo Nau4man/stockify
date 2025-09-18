@@ -51,7 +51,7 @@ const Toast = ({ message, type = 'info', duration = 4000, onClose, isDarkMode = 
 
   return (
     <div
-      className={`fixed top-4 right-4 z-50 max-w-sm w-full ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg border-l-4 ${getToastStyles()} transform transition-all duration-300 ease-in-out ${
+      className={`max-w-sm w-full ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg border-l-4 ${getToastStyles()} transform transition-all duration-300 ease-in-out ${
         isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
       }`}
     >

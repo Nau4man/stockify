@@ -636,6 +636,7 @@ const MetadataPreview = ({
                    )}
                  </div>
           <div className="space-y-4">
+            {/* Filename - Always shown */}
             <div>
               <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
                 Filename
@@ -645,78 +646,140 @@ const MetadataPreview = ({
               </p>
             </div>
             
-            <FormField
-              fieldName="description"
-              label="Description"
-              value={currentMetadata.description}
-              isTextarea={true}
-              isEditing={isEditing}
-              editValues={editValues}
-              onInputChange={handleInputChange}
-              validateField={validateField}
-              validationRules={validationRules}
-              targetPlatform={targetPlatform}
-              isDarkMode={isDarkMode}
-            />
-            
-            <FormField
-              fieldName="keywords"
-              label="Keywords"
-              value={currentMetadata.keywords}
-              isEditing={isEditing}
-              editValues={editValues}
-              onInputChange={handleInputChange}
-              validateField={validateField}
-              validationRules={validationRules}
-              targetPlatform={targetPlatform}
-              isDarkMode={isDarkMode}
-            />
-            
-            <FormField
-              fieldName="categories"
-              label="Categories"
-              value={currentMetadata.categories}
-              isEditing={isEditing}
-              editValues={editValues}
-              onInputChange={handleInputChange}
-              validateField={validateField}
-              validationRules={validationRules}
-              targetPlatform={targetPlatform}
-              isDarkMode={isDarkMode}
-            />
-            
-            <FormField
-              fieldName="editorial"
-              label="Editorial"
-              value={currentMetadata.editorial}
-              isEditing={isEditing}
-              editValues={editValues}
-              onInputChange={handleInputChange}
-              validateField={validateField}
-              validationRules={validationRules}
-              targetPlatform={targetPlatform}
-              isDarkMode={isDarkMode}
-            />
-            
-            <div>
-              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                Mature Content
-              </label>
-              <div className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border flex items-center`}>
-                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                <span>No (Fixed for stock platforms)</span>
-              </div>
-            </div>
-            
-            <div>
-              <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
-                Illustration
-              </label>
-              <div className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border flex items-center`}>
-                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                <span>No (Fixed for stock platforms)</span>
-              </div>
-            </div>
+            {/* Platform-specific fields */}
+            {targetPlatform === 'adobe_stock' ? (
+              // Adobe Stock fields
+              <>
+                <FormField
+                  fieldName="title"
+                  label="Title"
+                  value={currentMetadata.title}
+                  isTextarea={true}
+                  isEditing={isEditing}
+                  editValues={editValues}
+                  onInputChange={handleInputChange}
+                  validateField={validateField}
+                  validationRules={validationRules}
+                  targetPlatform={targetPlatform}
+                  isDarkMode={isDarkMode}
+                />
+                
+                <FormField
+                  fieldName="keywords"
+                  label="Keywords"
+                  value={currentMetadata.keywords}
+                  isEditing={isEditing}
+                  editValues={editValues}
+                  onInputChange={handleInputChange}
+                  validateField={validateField}
+                  validationRules={validationRules}
+                  targetPlatform={targetPlatform}
+                  isDarkMode={isDarkMode}
+                />
+                
+                <FormField
+                  fieldName="category"
+                  label="Category"
+                  value={currentMetadata.category}
+                  isEditing={isEditing}
+                  editValues={editValues}
+                  onInputChange={handleInputChange}
+                  validateField={validateField}
+                  validationRules={validationRules}
+                  targetPlatform={targetPlatform}
+                  isDarkMode={isDarkMode}
+                />
+                
+                <FormField
+                  fieldName="releases"
+                  label="Releases"
+                  value={currentMetadata.releases}
+                  isEditing={isEditing}
+                  editValues={editValues}
+                  onInputChange={handleInputChange}
+                  validateField={validateField}
+                  validationRules={validationRules}
+                  targetPlatform={targetPlatform}
+                  isDarkMode={isDarkMode}
+                />
+              </>
+            ) : (
+              // Shutterstock fields (default)
+              <>
+                <FormField
+                  fieldName="description"
+                  label="Description"
+                  value={currentMetadata.description}
+                  isTextarea={true}
+                  isEditing={isEditing}
+                  editValues={editValues}
+                  onInputChange={handleInputChange}
+                  validateField={validateField}
+                  validationRules={validationRules}
+                  targetPlatform={targetPlatform}
+                  isDarkMode={isDarkMode}
+                />
+                
+                <FormField
+                  fieldName="keywords"
+                  label="Keywords"
+                  value={currentMetadata.keywords}
+                  isEditing={isEditing}
+                  editValues={editValues}
+                  onInputChange={handleInputChange}
+                  validateField={validateField}
+                  validationRules={validationRules}
+                  targetPlatform={targetPlatform}
+                  isDarkMode={isDarkMode}
+                />
+                
+                <FormField
+                  fieldName="categories"
+                  label="Categories"
+                  value={currentMetadata.categories}
+                  isEditing={isEditing}
+                  editValues={editValues}
+                  onInputChange={handleInputChange}
+                  validateField={validateField}
+                  validationRules={validationRules}
+                  targetPlatform={targetPlatform}
+                  isDarkMode={isDarkMode}
+                />
+                
+                <FormField
+                  fieldName="editorial"
+                  label="Editorial"
+                  value={currentMetadata.editorial}
+                  isEditing={isEditing}
+                  editValues={editValues}
+                  onInputChange={handleInputChange}
+                  validateField={validateField}
+                  validationRules={validationRules}
+                  targetPlatform={targetPlatform}
+                  isDarkMode={isDarkMode}
+                />
+                
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                    Mature Content
+                  </label>
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border flex items-center`}>
+                    <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                    <span>No (Fixed for stock platforms)</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                    Illustration
+                  </label>
+                  <div className={`text-sm ${isDarkMode ? 'text-gray-200 bg-gray-700 border-gray-600' : 'text-gray-900 bg-gray-50 border-gray-200'} p-2 rounded border flex items-center`}>
+                    <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                    <span>No (Fixed for stock platforms)</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           
           {images.length > 0 && (

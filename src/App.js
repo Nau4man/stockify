@@ -725,88 +725,139 @@ function App() {
               <div className="flex items-center space-x-4">
                 {/* Demo Data Toggle */}
                 <div className="flex items-center space-x-2">
-                  <label className={`flex items-center space-x-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <input
-                      type="checkbox"
-                      checked={useDemoData}
-                      onChange={(e) => setUseDemoData(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                    />
-                    <span>Demo Data</span>
-                  </label>
+                  <button
+                    onClick={() => setUseDemoData(!useDemoData)}
+                    className={`group flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+                      useDemoData 
+                        ? (isDarkMode 
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-500 text-white shadow-lg shadow-purple-500/25' 
+                          : 'bg-gradient-to-r from-purple-500 to-indigo-500 border-purple-400 text-white shadow-lg shadow-purple-500/25')
+                        : (isDarkMode 
+                          ? 'bg-gray-800 border-gray-600 text-gray-300 hover:border-purple-400 hover:bg-gray-700' 
+                          : 'bg-white border-gray-300 text-gray-600 hover:border-purple-400 hover:bg-purple-50')
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded-full transition-all duration-200 ${
+                      useDemoData 
+                        ? 'bg-white shadow-lg' 
+                        : (isDarkMode ? 'bg-gray-500' : 'bg-gray-400')
+                    }`}></div>
+                    <span className="text-sm font-medium">{useDemoData ? 'Demo Mode' : 'AI Mode'}</span>
+                    {useDemoData && (
+                      <div className="flex items-center">
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
                 </div>
 
                 {/* Platform Selector */}
                 <div className="relative platform-selector-container">
                   <button
                     onClick={() => setShowPlatformSelector(!showPlatformSelector)}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+                    className={`group flex items-center space-x-3 px-4 py-3 rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
                       isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white hover:border-blue-400' 
-                        : 'bg-white border-gray-300 text-gray-900 hover:border-blue-500'
+                        ? 'bg-gradient-to-r from-gray-800 to-gray-700 border-gray-600 text-white hover:border-blue-400 hover:from-gray-700 hover:to-gray-600' 
+                        : 'bg-gradient-to-r from-white to-gray-50 border-gray-300 text-gray-900 hover:border-blue-500 hover:from-blue-50 hover:to-indigo-50'
                     }`}
                   >
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    <span className="text-sm font-medium">{getPlatformConfig(selectedPlatform)?.name || selectedPlatform}</span>
-                    <svg className={`w-4 h-4 transition-transform duration-200 ${showPlatformSelector ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-3">
+                        {/* Platform Logo */}
+                        {selectedPlatform === 'shutterstock' ? (
+                          <img 
+                            src="/assets/logos/shutterstock.webp" 
+                            alt="Shutterstock" 
+                            className="h-8 w-auto"
+                          />
+                        ) : selectedPlatform === 'adobe_stock' ? (
+                          <img 
+                            src="/assets/logos/adobe-stock.png" 
+                            alt="Adobe Stock" 
+                            className="h-8 w-auto"
+                          />
+                        ) : null}
+                        <div className="flex flex-col items-start">
+                          <div className="text-sm font-semibold">
+                            {getPlatformConfig(selectedPlatform)?.name || selectedPlatform}
+                          </div>
+                          <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Target platform
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <svg className={`w-5 h-5 transition-all duration-300 ${showPlatformSelector ? 'rotate-180 text-blue-500' : 'text-gray-400 group-hover:text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   
                   {/* Platform Dropdown */}
                   {showPlatformSelector && (
-                    <div className={`absolute right-0 top-full mt-1 w-64 rounded-lg border shadow-lg z-50 ${
-                      isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+                    <div className={`absolute right-0 top-full mt-2 w-72 rounded-xl border-2 shadow-2xl z-50 backdrop-blur-sm ${
+                      isDarkMode ? 'bg-gray-800/95 border-gray-600' : 'bg-white/95 border-gray-200'
                     }`}>
-                      <div className="p-1">
-                        {getAvailablePlatforms().map((platform) => (
-                          <button
-                            key={platform.id}
-                            onClick={() => {
-                              setSelectedPlatform(platform.id);
-                              setShowPlatformSelector(false);
-                            }}
-                            className={`w-full px-3 py-2 text-left rounded-md transition-colors duration-200 ${
-                              selectedPlatform === platform.id 
-                                ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white')
-                                : (isDarkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-50 text-gray-900')
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-sm">{platform.name}</div>
-                                <div className={`text-xs ${selectedPlatform === platform.id ? 'text-white/80' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`}>
-                                  {platform.description}
-                                </div>
-                              </div>
-                              {selectedPlatform === platform.id && (
-                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                        
-                        {/* Help Button */}
-                        <div className="border-t border-gray-200 dark:border-gray-600 mt-1 pt-1">
-                          <button
-                            onClick={() => {
-                              setShowPlatformInfoModal(true);
-                              setShowPlatformSelector(false);
-                            }}
-                            className={`w-full px-3 py-2 text-left rounded-md transition-colors duration-200 flex items-center gap-2 ${
-                              isDarkMode 
-                                ? 'hover:bg-gray-700 text-gray-300 hover:text-white' 
-                                : 'hover:bg-gray-50 text-gray-600 hover:text-gray-900'
-                            }`}
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="text-sm font-medium">Platform Requirements</span>
-                          </button>
+                      <div className="p-2">
+                        <div className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Select Platform
                         </div>
+                        {getAvailablePlatforms().map((platform) => {
+                          const platformConfig = getPlatformConfig(platform.id);
+                          return (
+                            <div key={platform.id} className="group">
+                              <button
+                                onClick={() => {
+                                  setSelectedPlatform(platform.id);
+                                  setShowPlatformSelector(false);
+                                }}
+                                className={`w-full px-3 py-3 text-left rounded-lg transition-all duration-200 ${
+                                  selectedPlatform === platform.id 
+                                    ? (isDarkMode ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/25' : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25')
+                                    : (isDarkMode ? 'hover:bg-gray-700/50 text-white hover:shadow-md' : 'hover:bg-gray-50 text-gray-900 hover:shadow-md')
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-3 flex-1">
+                                    <div className="flex-1">
+                                      <div className="font-semibold text-sm">
+                                        {platform.name}
+                                      </div>
+                                      <div className={`text-xs ${selectedPlatform === platform.id ? 'text-white/80' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`}>
+                                        {platform.description}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedPlatform(platform.id);
+                                        setShowPlatformInfoModal(true);
+                                        setShowPlatformSelector(false);
+                                      }}
+                                      className={`p-1 rounded-md transition-all duration-200 ${
+                                        selectedPlatform === platform.id
+                                          ? (isDarkMode 
+                                            ? 'hover:bg-blue-500/20 text-white/80 hover:text-white hover:bg-blue-500/30' 
+                                            : 'hover:bg-blue-500/20 text-white/80 hover:text-white hover:bg-blue-500/30')
+                                          : (isDarkMode 
+                                            ? 'hover:bg-gray-600 text-gray-400 hover:text-white' 
+                                            : 'hover:bg-gray-200 text-gray-500 hover:text-gray-900')
+                                      }`}
+                                      title={`View ${platform.name} requirements`}
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                </div>
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -816,25 +867,42 @@ function App() {
                 <div className="relative model-selector-container">
                   <button
                     onClick={() => setShowModelSelector(!showModelSelector)}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+                    className={`group flex items-center space-x-3 px-4 py-3 rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
                       isDarkMode 
-                        ? 'bg-gray-800 border-gray-600 text-white hover:border-blue-400' 
-                        : 'bg-white border-gray-300 text-gray-900 hover:border-blue-500'
+                        ? 'bg-gradient-to-r from-gray-800 to-gray-700 border-gray-600 text-white hover:border-green-400 hover:from-gray-700 hover:to-gray-600' 
+                        : 'bg-gradient-to-r from-white to-gray-50 border-gray-300 text-gray-900 hover:border-green-500 hover:from-green-50 hover:to-emerald-50'
                     }`}
                   >
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm font-medium">{GEMINI_MODELS[selectedModel]?.name || selectedModel}</span>
-                    <svg className={`w-4 h-4 transition-transform duration-200 ${showModelSelector ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-3 h-3 rounded-full shadow-lg ${
+                        selectedModel === 'gemini-2.5-flash-lite' ? 'bg-gradient-to-r from-green-500 to-emerald-500 shadow-green-500/50' :
+                        selectedModel === 'gemini-2.0-flash-lite' ? 'bg-gradient-to-r from-blue-500 to-cyan-500 shadow-blue-500/50' :
+                        GEMINI_MODELS[selectedModel]?.dailyLimit >= 1000 ? 'bg-gradient-to-r from-green-500 to-emerald-500 shadow-green-500/50' :
+                        GEMINI_MODELS[selectedModel]?.dailyLimit >= 500 ? 'bg-gradient-to-r from-blue-500 to-cyan-500 shadow-blue-500/50' :
+                        GEMINI_MODELS[selectedModel]?.dailyLimit >= 100 ? 'bg-gradient-to-r from-yellow-500 to-orange-500 shadow-yellow-500/50' :
+                        'bg-gradient-to-r from-red-500 to-pink-500 shadow-red-500/50'
+                      }`}></div>
+                      <div className="flex flex-col items-start">
+                        <span className="text-sm font-semibold">{GEMINI_MODELS[selectedModel]?.name || selectedModel}</span>
+                        <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          AI Model
+                        </span>
+                      </div>
+                    </div>
+                    <svg className={`w-5 h-5 transition-all duration-300 ${showModelSelector ? 'rotate-180 text-green-500' : 'text-gray-400 group-hover:text-green-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
                   
                   {/* Model Dropdown */}
                   {showModelSelector && (
-                    <div className={`absolute right-0 top-full mt-1 w-64 rounded-lg border shadow-lg z-50 ${
-                      isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'
+                    <div className={`absolute right-0 top-full mt-2 w-72 rounded-xl border-2 shadow-2xl z-50 backdrop-blur-sm ${
+                      isDarkMode ? 'bg-gray-800/95 border-gray-600' : 'bg-white/95 border-gray-200'
                     }`}>
-                      <div className="p-1">
+                      <div className="p-2">
+                        <div className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Select AI Model
+                        </div>
                         {Object.entries(GEMINI_MODELS).map(([key, model]) => (
                           <button
                             key={key}
@@ -842,23 +910,35 @@ function App() {
                               handleModelChange(key);
                               setShowModelSelector(false);
                             }}
-                            className={`w-full px-3 py-2 text-left rounded-md transition-colors duration-200 ${
+                            className={`w-full px-3 py-3 text-left rounded-lg transition-all duration-200 group ${
                               selectedModel === key 
-                                ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white')
-                                : (isDarkMode ? 'hover:bg-gray-700 text-white' : 'hover:bg-gray-50 text-gray-900')
+                                ? (isDarkMode ? 'bg-gradient-to-r from-green-600 to-emerald-700 text-white shadow-lg shadow-green-500/25' : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/25')
+                                : (isDarkMode ? 'hover:bg-gray-700/50 text-white hover:shadow-md' : 'hover:bg-gray-50 text-gray-900 hover:shadow-md')
                             }`}
                           >
                             <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-sm">{model.name}</div>
-                                <div className={`text-xs ${selectedModel === key ? 'text-white/80' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`}>
-                                  {model.dailyLimit} requests/day
+                              <div className="flex items-center space-x-3">
+                                <div className={`w-3 h-3 rounded-full ${
+                                  key === 'gemini-2.5-flash-lite' ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                                  key === 'gemini-2.0-flash-lite' ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
+                                  model.dailyLimit >= 1000 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                                  model.dailyLimit >= 500 ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
+                                  model.dailyLimit >= 100 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                                  'bg-gradient-to-r from-red-500 to-pink-500'
+                                }`}></div>
+                                <div>
+                                  <div className="font-semibold text-sm">{model.name}</div>
+                                  <div className={`text-xs ${selectedModel === key ? 'text-white/80' : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`}>
+                                    {model.dailyLimit} requests/day
+                                  </div>
                                 </div>
                               </div>
                               {selectedModel === key && (
-                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
+                                <div className="flex items-center space-x-1">
+                                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
                               )}
                             </div>
                           </button>
@@ -2295,10 +2375,24 @@ const GEMINI_API_KEY = 'AIzaSyB...';`}
             <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+                  <div className="w-10 h-10 flex items-center justify-center">
+                    {selectedPlatform === 'shutterstock' ? (
+                      <img 
+                        src="/assets/logos/shutterstock.webp" 
+                        alt="Shutterstock" 
+                        className="h-8 w-auto"
+                      />
+                    ) : selectedPlatform === 'adobe_stock' ? (
+                      <img 
+                        src="/assets/logos/adobe-stock.png" 
+                        alt="Adobe Stock" 
+                        className="h-8 w-auto"
+                      />
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    )}
                   </div>
                   <div>
                     <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -2383,6 +2477,11 @@ const GEMINI_API_KEY = 'AIzaSyB...';`}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-3">
+                          <img 
+                            src="/assets/logos/adobe-stock.png" 
+                            alt="Adobe Stock" 
+                            className="h-5 w-auto"
+                          />
                           <p className={`text-sm font-bold ${isDarkMode ? 'text-amber-200' : 'text-amber-800'}`}>
                             Adobe Stock Requirements
                           </p>
@@ -2436,6 +2535,11 @@ const GEMINI_API_KEY = 'AIzaSyB...';`}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-3">
+                          <img 
+                            src="/assets/logos/shutterstock.webp" 
+                            alt="Shutterstock" 
+                            className="h-5 w-auto"
+                          />
                           <p className={`text-sm font-bold ${isDarkMode ? 'text-blue-200' : 'text-blue-800'}`}>
                             Shutterstock Requirements
                           </p>

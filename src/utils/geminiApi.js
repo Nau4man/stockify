@@ -119,30 +119,113 @@ export const generateImageMetadata = async (imageFile, selectedModel = DEFAULT_M
     // Convert image to base64
     const base64Image = await convertImageToBase64(imageFile);
     
-    // Construct the prompt based on platform
+    // Construct the comprehensive prompt
     console.log('Generating prompt for platform:', platformId);
-    let prompt;
-    if (platformId === 'adobe_stock') {
-      prompt = `Analyze this image and generate metadata for Adobe Stock. Provide a JSON response with the following fields:
-- title: A short, descriptive title (max 200 characters)
-- keywords: Comma-separated keywords (max 49 keywords)
-- category: Numeric category ID (1-21 from Adobe Stock categories)
-- releases: Any model releases or property releases needed
+    const prompt = `You are generating metadata for stock photography content. 
+The user will specify whether the target platform is Shutterstock or Adobe Stock. 
+Your metadata must strictly follow all rules for the chosen platform, and produce CSV-ready structured data that helps maximize sales.
 
-Categories: 1=Animals, 2=Buildings and Architecture, 3=Business, 4=Drinks, 5=The Environment, 6=States of Mind, 7=Food, 8=Graphic Resources, 9=Hobbies and Leisure, 10=Industry, 11=Landscapes, 12=Lifestyle, 13=People, 14=Plants and Flowers, 15=Culture and Religion, 16=Science, 17=Social Issues, 18=Sports, 19=Technology, 20=Transport, 21=Travel
+====================
+GENERAL SAFETY RULES
+====================
+- All output must be accurate, factual, professional, and free of offensive, derogatory, culturally insensitive, or trademarked brand names (unless editorial and legally permitted).
+- Never guess or assume identity (ethnicity, religion, brand, person) unless clearly identifiable and allowed.
+- Metadata must directly match the content of the image and, where relevant, information in the filename.
 
-Consider the location from the filename if available. Return only valid JSON.`;
-    } else {
-      prompt = `Analyze this image and generate metadata for Shutterstock. Provide a JSON response with the following fields:
-- description: A short sentence (6-12 words, no commas, proper grammar, includes subject, action, location)
-- keywords: Comma-separated keywords (7-50 keywords, ordered by relevance, mix of subjects, actions, locations, concepts, buyer-intent phrases)
-- categories: 1-2 categories from Shutterstock's official list
-- editorial: "yes" if image shows people, logos, brands, events, landmarks, public figures; otherwise "no"
+=======================
+TITLE / DESCRIPTION RULES
+=======================
+- Write in clear, natural English with correct grammar and capitalization.
+- Capitalize the first word and all proper nouns. Do not use ALL CAPS.
+- Avoid generic adjectives like "beautiful," "amazing," "stunning." Focus on factual content.
+- Keep titles:
+  - Shutterstock: 5–10 words (about 6–12 is ideal).
+  - Adobe Stock: concise, under ~70 characters.
+- If the filename includes a location (city, country, or date), extract and use it in the title and keywords.
+- Editorial images: description must follow this format:  
+  "City, State/Country – Month Day Year: Description"
 
-Categories: Abstract, Animals/Wildlife, Arts, Backgrounds/Textures, Beauty/Fashion, Buildings/Landmarks, Business/Finance, Celebrities, Education, Food and drink, Healthcare/Medical, Holidays, Industrial, Interiors, Miscellaneous, Nature, Objects, Parks/Outdoor, People, Religion, Science, Signs/Symbols, Sports/Recreation, Technology, Transportation, Vintage
+Example:  
+Filename: 308-2-Kathmandu-Nepal-2024.JPG  
+Title: "Traditional Nepalese momos served in Kathmandu, Nepal"
 
-Consider the location from the filename if available. Return only valid JSON.`;
-    }
+================
+KEYWORD RULES
+================
+- Shutterstock: 7–50 unique keywords.  
+- Adobe Stock: up to 49 keywords.  
+- Order keywords by relevance; the **first 10 are the most important**.  
+- Keywords must be buyer-friendly, high-traffic, and reflect **real-world search queries** used on stock photo platforms.  
+- Always prioritize **specific subject keywords first**, then context (location, activity), then broader concepts.  
+- Include synonyms, plural/singular variations, and regional terms if relevant.  
+- Always include location names if in filename.  
+- Do not repeat words unnecessarily.  
+- Do not include offensive, irrelevant, or trademarked terms.  
+
+=====================
+SEO OPTIMIZATION RULES
+=====================
+- Write metadata to match **what buyers type in search bars**, not just what you see.  
+- Use **high-traffic, commercially relevant keywords**. For example:  
+  - Instead of "tranquil meadow," prefer "green field, mountain landscape, river valley."  
+  - Instead of "delicious dumplings," use "Nepalese momos, Asian street food, Kathmandu market."  
+- Include **both common terms and specific regional terms** if relevant (e.g., "soccer" and "football").  
+- For food, include cuisine type (e.g., "Nepalese cuisine, Asian food, street food").  
+- For animals, include species name + generic name (e.g., "Indian rhinoceros, rhino, wildlife Nepal").  
+- For cities/locations, include **city + country** together (e.g., "Kathmandu Nepal").  
+- Place the **highest-traffic, most relevant terms in the first 10 keyword slots**.
+
+================
+CATEGORY RULES
+================
+- Use only official categories from the chosen platform.  
+- **Shutterstock categories**:  
+  ["Abstract", "Animals/Wildlife", "Arts", "Backgrounds/Textures", "Beauty/Fashion", 
+   "Buildings/Landmarks", "Business/Finance", "Celebrities", "Education", "Food and drink", 
+   "Healthcare/Medical", "Holidays", "Industrial", "Interiors", "Miscellaneous", "Nature", 
+   "Objects", "Parks/Outdoor", "People", "Religion", "Science", "Signs/Symbols", 
+   "Sports/Recreation", "Technology", "Transportation", "Vintage"]
+
+- **Adobe Stock categories**:  
+  ["Animals", "Buildings and Architecture", "Business", "Drinks", "The Environment", 
+   "States of Mind", "Food", "Graphic Resources", "Hobbies and Leisure", "Industry", 
+   "Landscape", "Lifestyle", "People", "Plants and Flowers", "Culture and Religion", 
+   "Science", "Social Issues", "Sports", "Technology", "Transport", "Travel"]
+
+========================
+EDITORIAL / OTHER FIELDS
+========================
+- Editorial: "yes" if image contains public figures, logos, recognizable events/landmarks, or newsworthy content; otherwise "no".
+- Mature content: always "no" unless explicitly required.
+- Illustration: always "no" unless the asset is an illustration.
+- Adobe Stock CSV note: Filename must include extension and be ≤ 30 characters. CSV max 5000 rows, ≤ 1 MB.
+
+==================
+OUTPUT FORMAT
+==================
+Always return structured JSON (ready for CSV export) with these exact fields:
+
+${platformId === 'adobe_stock' ? `{
+  "Filename": "example.jpg",
+  "Title": "Concise factual title with proper capitalization",
+  "Keywords": "keyword1, keyword2, keyword3",
+  "Category": "CategoryName",
+  "Releases": "Any model releases or property releases needed"
+}` : `{
+  "Filename": "example.jpg",
+  "Description": "Concise factual description with proper capitalization",
+  "Keywords": "keyword1, keyword2, keyword3",
+  "Categories": "CategoryName",
+  "Editorial": "yes/no",
+  "Mature content": "no",
+  "Illustration": "no"
+}`}
+
+- Ensure headers and field names match the required CSV format for the chosen platform.  
+- Ensure all metadata complies with platform word/character/keyword count limits.  
+- Reject any category not in the official list.  
+
+Target platform: ${platformId === 'adobe_stock' ? 'Adobe Stock' : 'Shutterstock'}`;
 
     // Try models in order of preference
     let response;
@@ -153,6 +236,12 @@ Consider the location from the filename if available. Return only valid JSON.`;
       
       try {
         console.log(`Trying model: ${modelKey}`);
+        console.log('API Key Debug:', {
+          hasKey: !!GEMINI_API_KEY,
+          keyLength: GEMINI_API_KEY?.length,
+          keyPrefix: GEMINI_API_KEY?.substring(0, 10),
+          endpoint: currentModel.endpoint
+        });
         
         response = await fetch(`${currentModel.endpoint}?key=${GEMINI_API_KEY}`, {
           method: 'POST',
@@ -181,7 +270,13 @@ Consider the location from the filename if available. Return only valid JSON.`;
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          const errorText = await response.text();
+          console.error('API Response Error:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          });
+          throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
         }
 
         break; // Success, exit the loop
@@ -193,18 +288,23 @@ Consider the location from the filename if available. Return only valid JSON.`;
     }
 
     if (!response) {
-      throw lastError || new Error('All models failed');
+      const errorMessage = lastError?.message || 'All AI models failed to respond';
+      console.error('All models failed:', lastError);
+      throw new Error(`API Error: ${errorMessage}. Please check your API key and try again.`);
     }
 
     let data;
     try {
       data = await response.json();
     } catch (jsonError) {
-      throw new Error(`Failed to parse response: ${jsonError.message}`);
+      console.error('JSON parsing failed:', jsonError);
+      console.error('Raw response:', response);
+      throw new Error(`API Response Error: Failed to parse JSON response. The API may be returning invalid data.`);
     }
 
     if (!data.candidates || data.candidates.length === 0) {
-      throw new Error('No candidates in response');
+      console.error('No candidates in API response:', data);
+      throw new Error('API Error: No content generated. The AI model may be unavailable or overloaded.');
     }
 
     const candidate = data.candidates[0];
@@ -220,18 +320,21 @@ Consider the location from the filename if available. Return only valid JSON.`;
 
     const generatedText = candidate.content.parts[0].text;
     if (!generatedText) {
-      throw new Error('No content generated from Gemini API');
+      console.error('No text content in API response:', candidate);
+      throw new Error('API Error: No text content generated. The AI model may have failed to process the image.');
     }
 
     console.log('Generated text:', generatedText);
+    console.log('Generated text length:', generatedText.length);
+    console.log('First 500 chars:', generatedText.substring(0, 500));
 
     // Parse the JSON response
     try {
       // Clean the response text to extract JSON
       const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.error('No JSON pattern found in:', generatedText);
-        throw new Error('No JSON found in response');
+        console.error('No JSON pattern found in AI response:', generatedText);
+        throw new Error('AI Response Error: No valid JSON found in the response. The AI may not have followed the format instructions.');
       }
       
       console.log('Extracted JSON:', jsonMatch[0]);
@@ -239,24 +342,47 @@ Consider the location from the filename if available. Return only valid JSON.`;
       console.log('Parsed metadata:', metadata);
       
       // Validate and clean the metadata based on platform
+      // Handle both old format (lowercase) and new format (capitalized) field names
       if (platformId === 'adobe_stock') {
+        const title = metadata.Title || metadata.title;
+        const keywords = metadata.Keywords || metadata.keywords;
+        const category = metadata.Category || metadata.category;
+        const releases = metadata.Releases || metadata.releases;
+        
+        const hasEmptyFields = !title || !keywords;
         return {
           filename: imageFile.name,
-          title: metadata.title || 'No title available',
-          keywords: metadata.keywords || 'stock, photo, image',
-          category: metadata.category || '',
-          releases: metadata.releases || ''
+          title: title || '[FALLBACK] No title available - please edit manually',
+          keywords: keywords || '[FALLBACK] Please add relevant keywords manually',
+          category: category || '[FALLBACK] Please select category',
+          releases: releases || '[FALLBACK] Please specify releases if needed',
+          ...(hasEmptyFields && {
+            error: true,
+            errorType: 'incomplete_data',
+            message: 'AI returned incomplete metadata. Please review and edit manually.'
+          })
         };
       } else {
         // Default Shutterstock format
+        const description = metadata.Description || metadata.description;
+        const keywords = metadata.Keywords || metadata.keywords;
+        const categories = metadata.Categories || metadata.categories;
+        const editorial = metadata.Editorial || metadata.editorial;
+        
+        const hasEmptyFields = !description || !keywords;
         return {
           filename: imageFile.name,
-          description: metadata.description || 'No description available',
-          keywords: metadata.keywords || 'stock, photo, image',
-          categories: metadata.categories || 'Miscellaneous',
-          editorial: metadata.editorial === 'yes' ? 'yes' : 'no',
+          description: description || '[FALLBACK] No description available - please edit manually',
+          keywords: keywords || '[FALLBACK] Please add relevant keywords manually',
+          categories: categories || '[FALLBACK] Miscellaneous',
+          editorial: editorial === 'yes' ? 'yes' : 'no',
           matureContent: 'no', // Always no as per requirements
-          illustration: 'no'   // Always no as per requirements
+          illustration: 'no',   // Always no as per requirements
+          ...(hasEmptyFields && {
+            error: true,
+            errorType: 'incomplete_data',
+            message: 'AI returned incomplete metadata. Please review and edit manually.'
+          })
         };
       }
     } catch (parseError) {
@@ -269,7 +395,7 @@ Consider the location from the filename if available. Return only valid JSON.`;
         
         if (platformId === 'adobe_stock') {
           let title = 'AI-generated stock photo title';
-          let keywords = 'stock, photo, image, professional, high-quality';
+          let keywords = 'Please add relevant keywords manually';
           let category = '';
           let releases = '';
           
@@ -319,15 +445,18 @@ Consider the location from the filename if available. Return only valid JSON.`;
           
           return {
             filename: imageFile.name,
-            title,
-            keywords,
-            category,
-            releases
+            title: title.includes('AI-generated') ? title : `[PARTIAL] ${title}`,
+            keywords: keywords.includes('Please add relevant keywords') ? keywords : `[PARTIAL] ${keywords}`,
+            category: category || '[PARTIAL] Please select category',
+            releases: releases || '[PARTIAL] Please specify releases if needed',
+            error: true,
+            errorType: 'partial_parsing',
+            message: 'AI response partially parsed. Please review and edit metadata.'
           };
         } else {
           // Default Shutterstock fallback
           let description = 'AI-generated stock photo description';
-          let keywords = 'stock, photo, image, professional, high-quality';
+          let keywords = 'Please add relevant keywords manually';
           let categories = 'Miscellaneous';
           let editorial = 'no';
         
@@ -361,35 +490,44 @@ Consider the location from the filename if available. Return only valid JSON.`;
           
           return {
             filename: imageFile.name,
-            description: description,
-            keywords: keywords,
-            categories: categories,
+            description: description.includes('AI-generated') ? description : `[PARTIAL] ${description}`,
+            keywords: keywords.includes('Please add relevant keywords') ? keywords : `[PARTIAL] ${keywords}`,
+            categories: categories === 'Miscellaneous' ? '[PARTIAL] Miscellaneous' : `[PARTIAL] ${categories}`,
             editorial: editorial,
             matureContent: 'no',
-            illustration: 'no'
+            illustration: 'no',
+            error: true,
+            errorType: 'partial_parsing',
+            message: 'AI response partially parsed. Please review and edit metadata.'
           };
         }
       } catch (extractError) {
         console.error('Error extracting from text:', extractError);
         
-        // Final fallback metadata
+        // Final fallback metadata - clearly marked as fallback
         if (platformId === 'adobe_stock') {
           return {
             filename: imageFile.name,
-            title: 'AI-generated stock photo title',
-            keywords: 'stock, photo, image, professional, high-quality',
-            category: '',
-            releases: ''
+            title: '[FALLBACK] Unable to generate title - please edit manually',
+            keywords: '[FALLBACK] Please add relevant keywords manually',
+            category: '[FALLBACK] Please select category',
+            releases: '[FALLBACK] Please specify releases if needed',
+            error: true,
+            errorType: 'parsing_failed',
+            message: 'AI response could not be parsed. Please edit metadata manually.'
           };
         } else {
           return {
             filename: imageFile.name,
-            description: 'AI-generated stock photo description',
-            keywords: 'stock, photo, image, professional, high-quality',
-            categories: 'Miscellaneous',
+            description: '[FALLBACK] Unable to generate description - please edit manually',
+            keywords: '[FALLBACK] Please add relevant keywords manually',
+            categories: '[FALLBACK] Miscellaneous',
             editorial: 'no',
             matureContent: 'no',
-            illustration: 'no'
+            illustration: 'no',
+            error: true,
+            errorType: 'parsing_failed',
+            message: 'AI response could not be parsed. Please edit metadata manually.'
           };
         }
       }
