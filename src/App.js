@@ -7,7 +7,7 @@ import CSVPreview from './components/CSVPreview';
 import FailedImages from './components/FailedImages';
 import ToastContainer from './components/ToastContainer';
 import { generateMultipleImageMetadata, retryImageMetadata, DEFAULT_MODEL, GEMINI_MODELS } from './utils/geminiApi';
-import { generateCSV, downloadCSV, validateMetadata } from './utils/csvGenerator';
+import { generateCSV, downloadCSV, showCSVInNewWindow, validateMetadata, fixCategoryMappings } from './utils/csvGenerator';
 import { getRateLimitedModels } from './utils/rateLimitTracker';
 import { getPlatformConfig, getAvailablePlatforms } from './utils/platformConfig';
 import debugEnv from './debug-env';
@@ -569,6 +569,7 @@ function App() {
     }
   }, []);
 
+
   // Download CSV
   const handleDownloadCSV = useCallback(() => {
     if (metadata.length === 0) {
@@ -591,10 +592,12 @@ function App() {
         console.warn(`Skipping ${errorMetadata.length} images with errors in CSV generation`);
       }
 
-      // Validate all valid metadata before generating CSV
+      // Fix category mappings and validate all valid metadata before generating CSV
       const validationErrors = [];
-      validMetadata.forEach((item, index) => {
-        const validation = validateMetadata(item);
+      const fixedMetadata = validMetadata.map(item => fixCategoryMappings(item, selectedPlatform));
+      
+      fixedMetadata.forEach((item, index) => {
+        const validation = validateMetadata(item, selectedPlatform);
         if (!validation.isValid) {
           validationErrors.push(`Image ${index + 1}: ${validation.errors.join(', ')}`);
         }
@@ -605,19 +608,28 @@ function App() {
         return;
       }
 
-      const csvContent = generateCSV(validMetadata, selectedPlatform);
+      const csvContent = generateCSV(fixedMetadata, selectedPlatform);
       const timestamp = new Date().toISOString().split('T')[0];
-      const filename = `shutterstock_metadata_${timestamp}.csv`;
+      const platform = getPlatformConfig(selectedPlatform);
+      const platformName = platform.name.toLowerCase().replace(/\s+/g, '_');
+      const filename = `${platformName}_metadata_${timestamp}.csv`;
       
-      downloadCSV(csvContent, filename, selectedPlatform);
-      setShowCSVPreview(false);
-      
-      // Show success message
-      console.log(`CSV downloaded successfully: ${filename} (${validMetadata.length} images)`);
-      addToast(`CSV downloaded successfully! (${validMetadata.length} images)`, 'success');
+      try {
+        downloadCSV(csvContent, filename, selectedPlatform);
+        setShowCSVPreview(false);
+        addToast(`CSV downloaded successfully! (${fixedMetadata.length} images)`, 'success');
+      } catch (downloadError) {
+        // Try fallback method
+        try {
+          showCSVInNewWindow(csvContent, filename);
+          addToast(`Download failed, but CSV content opened in new window. You can copy and save it manually.`, 'warning');
+        } catch (fallbackError) {
+          addToast(`Download failed: ${downloadError.message}`, 'error');
+          throw downloadError; // Re-throw the original error
+        }
+      }
       
     } catch (err) {
-      console.error('Error generating CSV:', err);
       addToast(`Failed to generate CSV file: ${err.message}`, 'error');
       setError(`Failed to generate CSV file: ${err.message}`);
     }
