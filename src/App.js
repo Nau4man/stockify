@@ -240,16 +240,34 @@ function App() {
       addToast(`${addedCount} image(s) added successfully!`, 'success');
     }
 
+    // Create image objects with URLs from File objects
+    const imageObjects = newImages.map(file => ({
+      id: Date.now() + Math.random(),
+      file: file,
+      url: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      status: 'pending'
+    }));
+
     // Update images state
-    console.log('Updating images state with new images:', newImages.length);
+    console.log('Updating images state with new image objects:', imageObjects.length);
     setImages(prevImages => {
-      const updatedImages = [...prevImages, ...newImages];
+      const updatedImages = [...prevImages, ...imageObjects];
       console.log('Updated images count:', updatedImages.length);
       return updatedImages;
     });
-    setShowPreview(false);
-    // Reset selected image index to 0 when new images are added
-    setSelectedImageIndex(0);
+    // Only reset selected image index if current selection is invalid
+    setSelectedImageIndex(prevIndex => {
+      // If current selection is still valid (has metadata), keep it
+      if (prevIndex < images.length && metadata[prevIndex] && !metadata[prevIndex].error) {
+        return prevIndex;
+      }
+      // Otherwise, find the first processed image or default to 0
+      const firstProcessedIndex = metadata.findIndex(item => item && !item.error);
+      return firstProcessedIndex >= 0 ? firstProcessedIndex : 0;
+    });
   }, [addToast, images]);
 
   // Handle model selection change
@@ -669,31 +687,6 @@ function App() {
                 </div>
               )}
 
-              {/* Images Count */}
-              {images.length > 0 && (
-                <div className={`flex items-center space-x-2 ${isDarkMode ? 'bg-green-900/30 text-green-300 border-green-700' : 'bg-green-50 text-green-700 border-green-200'} px-3 py-2 rounded-lg border`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span className="text-sm font-medium">{images.length} image{images.length !== 1 ? 's' : ''}</span>
-                </div>
-              )}
-
-              {/* Quick Actions */}
-              {images.length > 0 && (
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={handleClearAll}
-                    disabled={isProcessing}
-                    className={`p-2 ${isDarkMode ? 'text-gray-400 hover:text-red-400 hover:bg-red-900/20' : 'text-gray-500 hover:text-red-600 hover:bg-red-50'} rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
-                    title="Clear all images"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              )}
 
               {/* Theme Switch Button */}
               <button
@@ -902,27 +895,134 @@ function App() {
               ref={fileInputRef}
             />
             
+            {/* Image Preview Section */}
+            {images.length > 0 && (
+              <div className="mt-4">
+                {/* Thumbnail Grid */}
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 mb-4">
+                  {images.slice(0, 10).map((image, index) => (
+                    <div key={image.id} className="relative group">
+                      <img
+                        src={image.url}
+                        alt={`Upload ${index + 1}`}
+                        className="w-full h-16 object-cover rounded-lg hover:ring-2 hover:ring-blue-400 transition-all duration-200 cursor-pointer"
+                        onClick={() => {
+                          setSelectedImageIndex(index);
+                          setSelectedImage(images[index]);
+                          setCurrentImageIndex(index);
+                          setShowImageModal(true);
+                        }}
+                      />
+                      
+                      {/* Hover Actions Overlay */}
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center rounded-lg transition-all duration-200">
+                        <div className="opacity-0 group-hover:opacity-100 flex space-x-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedImageIndex(index);
+                              setSelectedImage(images[index]);
+                              setCurrentImageIndex(index);
+                              setShowImageModal(true);
+                            }}
+                            className={`p-1 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded shadow-lg`}
+                            title="View full size"
+                          >
+                            <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveImage(index);
+                            }}
+                            disabled={isProcessing}
+                            className={`p-1 ${isDarkMode ? 'bg-red-800 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} rounded shadow-lg disabled:opacity-50 disabled:cursor-not-allowed`}
+                            title="Remove this image"
+                          >
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Processing Status Badge */}
+                      {metadata[index] && (
+                        <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-xs ${
+                          metadata[index].error
+                            ? 'bg-red-500 text-white'
+                            : 'bg-green-500 text-white'
+                        }`}>
+                          {metadata[index].error ? '✕' : '✓'}
+                        </div>
+                      )}
+
+                      {/* Overflow Indicator */}
+                      {index === 9 && images.length > 10 && (
+                        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                          <span className="text-white text-xs font-bold">+{images.length - 10}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             {images.length > 0 && (
               <div className="mt-6">
-                <button
-                  onClick={handleProcessImages}
-                  disabled={isProcessing}
-                  className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-3 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                      <span className="font-semibold">Processing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      <span className="font-semibold">Process Images with AI</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Main Process Button */}
+                  <button
+                    onClick={handleProcessImages}
+                    disabled={isProcessing}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-3 shadow-md hover:shadow-lg border-2 border-indigo-500 hover:border-indigo-400 transform hover:-translate-y-0.5 cursor-pointer"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-6 w-6 border-3 border-white border-t-transparent"></div>
+                        <div className="text-left">
+                          <div className="font-bold text-lg">AI Processing...</div>
+                          <div className="text-sm opacity-90">Generating metadata</div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        <div className="text-left">
+                          <div className="font-bold text-lg">📸 Generate Stock Metadata</div>
+                          <div className="text-sm opacity-90">AI keywords, titles & descriptions</div>
+                        </div>
+                        <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+
+
+                  {/* Clear All Button - Secondary Action */}
+                  <button
+                    onClick={handleClearAll}
+                    disabled={isProcessing}
+                    className={`px-4 py-3 rounded-lg border-2 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode 
+                        ? 'bg-transparent border-red-500 text-red-400 hover:bg-red-500/10 hover:border-red-400' 
+                        : 'bg-transparent border-red-500 text-red-600 hover:bg-red-50 hover:border-red-400'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span className="font-medium text-sm">Clear All</span>
+                  </button>
+
+                </div>
               </div>
             )}
           </div>
@@ -966,62 +1066,6 @@ function App() {
             isDarkMode={isDarkMode}
           />
 
-          {/* Image Management Summary - Only show if images are uploaded */}
-          {images.length > 0 && (
-            <div id="preview" className={`${isDarkMode ? 'bg-gray-800/70 border-gray-700/20' : 'bg-white/70 border-white/20'} backdrop-blur-sm rounded-2xl shadow-xl border p-6 scroll-mt-32`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {images.length} Image{images.length !== 1 ? 's' : ''} Uploaded
-                    </h2>
-                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      {metadata.length > 0 
-                        ? `${metadata.filter(item => !item.error).length} processed successfully`
-                        : 'Click "Process Images with AI" to generate metadata'
-                      }
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  {metadata.length > 0 && metadata.some(item => !item.error) && (
-                    <button
-                      onClick={() => setShowPreview(!showPreview)}
-                      className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
-                        showPreview 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : isDarkMode 
-                          ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600' 
-                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="text-sm font-medium">
-                        {showPreview ? 'Hide Metadata' : 'View & Edit Metadata'}
-                      </span>
-                    </button>
-                  )}
-                  
-                  <button
-                    onClick={handleClearAll}
-                    disabled={isProcessing}
-                    className={`px-4 py-2 rounded-lg border transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isDarkMode 
-                        ? 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600' 
-                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="text-sm font-medium">Clear All</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
 
 
@@ -1038,15 +1082,15 @@ function App() {
             />
           )}
 
-          {/* Metadata Preview - Only show if there are images and user wants to see it */}
-          {showPreview && images.length > 0 && (
+          {/* Metadata Preview - Only show if there are processed images */}
+          {showPreview && metadata.length > 0 && metadata.some(item => !item.error) && (
             <MetadataPreview 
               metadata={metadata}
               isVisible={showPreview}
               onEdit={handleEditMetadata}
               onSave={handleSaveMetadata}
               isDarkMode={isDarkMode}
-              images={images}
+              images={images.filter((_, index) => metadata[index] && !metadata[index].error)}
               selectedImageIndex={selectedImageIndex}
               onImageSelect={setSelectedImageIndex}
               targetPlatform={selectedPlatform}

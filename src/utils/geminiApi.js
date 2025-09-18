@@ -42,8 +42,25 @@ const validateApiConfig = () => {
 };
 
 // Convert image to base64
-const convertImageToBase64 = (file) => {
+const convertImageToBase64 = (imageOrFile) => {
   return new Promise((resolve, reject) => {
+    // Handle both File objects and image objects with file property
+    let file;
+    if (imageOrFile instanceof File) {
+      file = imageOrFile;
+    } else if (imageOrFile && imageOrFile.file instanceof File) {
+      file = imageOrFile.file;
+    } else {
+      reject(new Error('Invalid file object: expected File or image object with file property'));
+      return;
+    }
+
+    // Validate that we have a proper File/Blob
+    if (!(file instanceof File) && !(file instanceof Blob)) {
+      reject(new Error('Invalid file type: expected File or Blob object'));
+      return;
+    }
+
     const reader = new FileReader();
     const timeout = setTimeout(() => {
       reader.abort();

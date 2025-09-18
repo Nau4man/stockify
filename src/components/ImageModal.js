@@ -4,6 +4,7 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
 
+
   useEffect(() => {
     if (isOpen && image) {
       setImageLoaded(false);
@@ -177,7 +178,7 @@ const ImageModal = ({ image, isOpen, onClose, images = [], currentIndex = 0, onN
         ) : (
           <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <img
-              src={URL.createObjectURL(image)}
+              src={image.url}
               alt={image.name}
               className="max-w-full max-h-full object-contain"
               onLoad={handleImageLoad}

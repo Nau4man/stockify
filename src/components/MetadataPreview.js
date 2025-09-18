@@ -99,6 +99,8 @@ const MetadataPreview = ({
   const [loadedImages, setLoadedImages] = useState(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState({});
+  const [currentPage, setCurrentPage] = useState(0);
+  const [isChangingPage, setIsChangingPage] = useState(false);
   
   // Get the current metadata item based on selectedImageIndex
   const currentMetadata = metadata && Array.isArray(metadata) ? metadata[selectedImageIndex] : null;
@@ -186,25 +188,28 @@ const MetadataPreview = ({
 
     const errors = [];
 
-    if (rules.required && (!value || value.trim().length === 0)) {
+    // Ensure value is a string before calling trim
+    const stringValue = String(value || '');
+    
+    if (rules.required && (!value || stringValue.trim().length === 0)) {
       errors.push(`${rules.message} - Field is required`);
     }
 
-    if (value && value.trim().length > 0) {
-      if (rules.minLength && value.length < rules.minLength) {
-        errors.push(`${rules.message} - Need at least ${rules.minLength} characters (current: ${value.length})`);
+    if (value && stringValue.trim().length > 0) {
+      if (rules.minLength && stringValue.length < rules.minLength) {
+        errors.push(`${rules.message} - Need at least ${rules.minLength} characters (current: ${stringValue.length})`);
       }
-      if (rules.maxLength && value.length > rules.maxLength) {
-        errors.push(`${rules.message} - Maximum ${rules.maxLength} characters allowed (current: ${value.length})`);
+      if (rules.maxLength && stringValue.length > rules.maxLength) {
+        errors.push(`${rules.message} - Maximum ${rules.maxLength} characters allowed (current: ${stringValue.length})`);
       }
       if (rules.minCount && fieldName === 'keywords') {
-        const keywordCount = value.split(',').filter(k => k.trim().length > 0).length;
+        const keywordCount = stringValue.split(',').filter(k => k.trim().length > 0).length;
         if (keywordCount < rules.minCount) {
           errors.push(`${rules.message} - Need at least ${rules.minCount} keywords (current: ${keywordCount})`);
         }
       }
       if (rules.maxCount && fieldName === 'keywords') {
-        const keywordCount = value.split(',').filter(k => k.trim().length > 0).length;
+        const keywordCount = stringValue.split(',').filter(k => k.trim().length > 0).length;
         if (keywordCount > rules.maxCount) {
           errors.push(`${rules.message} - Maximum ${rules.maxCount} keywords allowed (current: ${keywordCount})`);
         }
@@ -320,17 +325,42 @@ const MetadataPreview = ({
     }
   }, [isVisible, handleKeyDown]);
 
-  // Cache object URLs for faster thumbnail loading
+  // Pagination constants - declare first
+  const imagesPerPage = 15;
+  const totalPages = Math.ceil(images.length / imagesPerPage);
+  const startIndex = currentPage * imagesPerPage;
+
+  // Use existing image URLs (already created in App.js) - memoized for performance
   const imageUrls = useMemo(() => {
-    return images.map(image => URL.createObjectURL(image));
+    return images.map(image => image.url);
   }, [images]);
 
-  // Cleanup object URLs when component unmounts
+  // Memoize current images to prevent unnecessary re-renders
+  const currentImages = useMemo(() => {
+    const startIndex = currentPage * imagesPerPage;
+    const endIndex = startIndex + imagesPerPage;
+    return images.slice(startIndex, endIndex);
+  }, [images, currentPage, imagesPerPage]);
+
+  // Reset to first page when images change
   useEffect(() => {
-    return () => {
-      imageUrls.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, [imageUrls]);
+    setCurrentPage(0);
+  }, [images.length]);
+
+  // Debounced page change to prevent rapid clicking
+  const handlePageChange = useCallback((newPage) => {
+    if (isChangingPage) return;
+    
+    setIsChangingPage(true);
+    setCurrentPage(newPage);
+    
+    // Reset the changing flag after a short delay
+    setTimeout(() => {
+      setIsChangingPage(false);
+    }, 100);
+  }, [isChangingPage]);
+
+  // No cleanup needed since we're using existing URLs from App.js
 
   // Handle image load events
   const handleImageLoad = useCallback((index) => {
@@ -365,26 +395,35 @@ const MetadataPreview = ({
           )}
         </div>
                {!currentMetadata.error && currentMetadata.filename && (
-                 <div className="flex space-x-2">
+                 <div className="flex space-x-3">
                    {!isEditing ? (
                      <button
                        onClick={handleEditForm}
-                       className="px-3 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                       className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                      >
-                       Edit
+                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                       </svg>
+                       Edit Metadata
                      </button>
                    ) : (
                      <>
                        <button
                          onClick={handleSaveForm}
-                         className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-200"
+                         className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                        >
-                         Save
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                         </svg>
+                         Save Changes
                        </button>
                        <button
                          onClick={handleCancelEdit}
-                         className="px-3 py-1 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors duration-200"
+                         className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
                        >
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                         </svg>
                          Cancel
                        </button>
                      </>
@@ -409,25 +448,34 @@ const MetadataPreview = ({
               </div>
             </div>
           
-            {/* Thumbnail Grid */}
-            <div className="grid grid-cols-3 gap-1">
-              {images.map((image, index) => {
-                const isSelected = index === selectedImageIndex;
-                const hasError = metadata[index]?.error;
+            {/* Thumbnail Grid - Responsive 3 columns x 5 rows */}
+            <div className={`grid gap-1 ${
+              currentImages.length <= 3 ? 'grid-cols-1' :
+              currentImages.length <= 6 ? 'grid-cols-2' :
+              'grid-cols-3'
+            } ${
+              currentImages.length <= 3 ? 'max-w-xs mx-auto' :
+              currentImages.length <= 6 ? 'max-w-md mx-auto' :
+              'w-full'
+            }`}>
+              {currentImages.map((image, index) => {
+                const actualIndex = startIndex + index;
+                const isSelected = actualIndex === selectedImageIndex;
+                const hasError = metadata[actualIndex]?.error;
                 
                 return (
                   <div
-                    key={index}
-                    className={`relative group cursor-pointer ${
+                    key={actualIndex}
+                    className={`relative group cursor-pointer transition-all duration-200 ${
                       isSelected 
-                        ? 'ring-2 ring-blue-500 ring-offset-2' 
-                        : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-1'
+                        ? 'ring-2 ring-blue-400 ring-offset-1 shadow-lg shadow-blue-500/25' 
+                        : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-1 hover:shadow-md'
                     } ${isDarkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`}
-                    onClick={() => onImageSelect && onImageSelect(index)}
+                    onClick={() => onImageSelect && onImageSelect(actualIndex)}
                   >
                     {/* Thumbnail Image */}
                     <div className={`relative ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden aspect-square`}>
-                      {!loadedImages.has(index) && (
+                      {!loadedImages.has(actualIndex) && (
                         <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
                           <div className="relative">
                             <div className="w-6 h-6 border-2 border-gray-300 rounded-full"></div>
@@ -436,12 +484,12 @@ const MetadataPreview = ({
                         </div>
                       )}
                       <img
-                        src={imageUrls[index]}
+                        src={imageUrls[actualIndex]}
                         alt={image.name}
                         className="w-full h-full object-cover"
-                        onLoad={() => handleImageLoad(index)}
-                        onError={() => handleImageError(index)}
-                        style={{ opacity: loadedImages.has(index) ? 1 : 0 }}
+                        onLoad={() => handleImageLoad(actualIndex)}
+                        onError={() => handleImageError(actualIndex)}
+                        style={{ opacity: loadedImages.has(actualIndex) ? 1 : 0 }}
                       />
                       
                       {/* Error Overlay */}
@@ -503,7 +551,7 @@ const MetadataPreview = ({
                       {/* Selection Indicator */}
                       {isSelected && (
                         <div className="absolute top-2 right-2">
-                          <div className="bg-blue-500 text-white rounded-full p-1">
+                          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full p-1.5 shadow-lg shadow-blue-500/30">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
@@ -512,63 +560,64 @@ const MetadataPreview = ({
                       )}
                     </div>
                     
-                    {/* Image Info */}
-                    <div className="mt-1">
-                      <p className={`text-xs font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        {image.name}
-                      </p>
-                      <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {(image.size / 1024 / 1024).toFixed(1)} MB
-                      </p>
-                      {hasError && (
-                        <p className="text-xs text-red-500 truncate">
-                          {metadata[index]?.message || 'Processing failed'}
-                        </p>
-                      )}
-                    </div>
                   </div>
                 );
               })}
             </div>
             
-            {/* Navigation Controls */}
-            {images.length > 1 && (
-              <div className="flex items-center justify-center mt-4 space-x-4">
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center mt-4 space-x-2">
                 <button
-                  onClick={() => onImageSelect && onImageSelect(Math.max(0, selectedImageIndex - 1))}
-                  disabled={selectedImageIndex === 0}
-                  className={`px-4 py-2 rounded-lg transition-colors duration-200 ${
-                    selectedImageIndex === 0
-                      ? `${isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'} cursor-not-allowed`
-                      : `${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`
+                  onClick={() => handlePageChange(Math.max(0, currentPage - 1))}
+                  disabled={currentPage === 0 || isChangingPage}
+                  className={`px-3 py-2 rounded-lg transition-colors duration-200 ${
+                    currentPage === 0
+                      ? `${isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
+                      : `${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`
                   }`}
+                  title="Previous page"
                 >
-                  <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
-                  Previous
                 </button>
                 
-                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} px-4`}>
-                  {selectedImageIndex + 1} / {images.length}
-                </span>
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handlePageChange(i)}
+                      disabled={isChangingPage}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
+                        i === currentPage
+                          ? `${isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`
+                          : `${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
                 
                 <button
-                  onClick={() => onImageSelect && onImageSelect(Math.min(images.length - 1, selectedImageIndex + 1))}
-                  disabled={selectedImageIndex === images.length - 1}
-                  className={`px-4 py-2 rounded-lg transition-colors duration-200 ${
-                    selectedImageIndex === images.length - 1
-                      ? `${isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-100 text-gray-400'} cursor-not-allowed`
-                      : `${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`
+                  onClick={() => handlePageChange(Math.min(totalPages - 1, currentPage + 1))}
+                  disabled={currentPage === totalPages - 1 || isChangingPage}
+                  className={`px-3 py-2 rounded-lg transition-colors duration-200 ${
+                    currentPage === totalPages - 1
+                      ? `${isDarkMode ? 'bg-gray-700 text-gray-500' : 'bg-gray-200 text-gray-400'} cursor-not-allowed`
+                      : `${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`
                   }`}
+                  title="Next page"
                 >
-                  Next
-                  <svg className="w-4 h-4 ml-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
+                
               </div>
             )}
+            
           </div>
         )}
 
