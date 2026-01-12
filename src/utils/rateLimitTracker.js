@@ -5,8 +5,8 @@ const RATE_LIMIT_STORAGE_KEY = 'gemini_rate_limits';
 
 // Default rate limits (requests per day) - these reset every 24 hours
 export const MODEL_RATE_LIMITS = {
-  'gemini-2.5-flash-lite': 1000,
-  'gemini-2.0-flash-lite': 200,
+  'gemini-3-pro-preview': 1000,
+  'gemini-2.0-flash': 1000,
   'gemini-1.5-pro': 50
 };
 

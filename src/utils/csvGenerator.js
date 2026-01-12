@@ -106,47 +106,70 @@ export const downloadCSV = (csvContent, filename = 'stock_metadata.csv', platfor
 
 /**
  * Fallback method to show CSV content in a new window
+ * Uses DOM APIs instead of document.write to prevent XSS vulnerabilities
  */
 export const showCSVInNewWindow = (csvContent, filename = 'stock_metadata.csv') => {
   try {
     const newWindow = window.open('', '_blank');
     if (newWindow) {
-      newWindow.document.write(`
-        <html>
-          <head>
-            <title>${filename}</title>
-            <style>
-              body { font-family: monospace; padding: 20px; }
-              pre { white-space: pre-wrap; word-wrap: break-word; }
-              .header { background: #f0f0f0; padding: 10px; margin-bottom: 20px; border-radius: 5px; }
-              .copy-btn { 
-                background: #007bff; color: white; border: none; padding: 10px 20px; 
-                border-radius: 5px; cursor: pointer; margin-bottom: 20px;
-              }
-              .copy-btn:hover { background: #0056b3; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h2>CSV Content: ${filename}</h2>
-              <p>If the download didn't work, you can copy this content and save it as a .csv file:</p>
-              <button class="copy-btn" onclick="copyToClipboard()">Copy to Clipboard</button>
-            </div>
-            <pre id="csv-content">${csvContent}</pre>
-            <script>
-              function copyToClipboard() {
-                const content = document.getElementById('csv-content').textContent;
-                navigator.clipboard.writeText(content).then(() => {
-                  alert('CSV content copied to clipboard!');
-                }).catch(() => {
-                  alert('Failed to copy to clipboard. Please select and copy the text manually.');
-                });
-              }
-            </script>
-          </body>
-        </html>
-      `);
-      newWindow.document.close();
+      const doc = newWindow.document;
+
+      // Create document structure using DOM APIs (XSS-safe)
+      doc.open();
+      doc.write('<!DOCTYPE html><html><head></head><body></body></html>');
+      doc.close();
+
+      // Set title safely
+      doc.title = filename;
+
+      // Add styles
+      const style = doc.createElement('style');
+      style.textContent = `
+        body { font-family: monospace; padding: 20px; background: #fafafa; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .header { background: #f0f0f0; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+        .header h2 { margin: 0 0 10px 0; }
+        .copy-btn {
+          background: #007bff; color: white; border: none; padding: 10px 20px;
+          border-radius: 5px; cursor: pointer; margin-top: 10px;
+        }
+        .copy-btn:hover { background: #0056b3; }
+      `;
+      doc.head.appendChild(style);
+
+      // Create header div
+      const headerDiv = doc.createElement('div');
+      headerDiv.className = 'header';
+
+      const h2 = doc.createElement('h2');
+      h2.textContent = `CSV Content: ${filename}`; // textContent is XSS-safe
+      headerDiv.appendChild(h2);
+
+      const p = doc.createElement('p');
+      p.textContent = "If the download didn't work, you can copy this content and save it as a .csv file:";
+      headerDiv.appendChild(p);
+
+      const copyBtn = doc.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.textContent = 'Copy to Clipboard';
+      copyBtn.onclick = function() {
+        const content = doc.getElementById('csv-content').textContent;
+        navigator.clipboard.writeText(content).then(() => {
+          alert('CSV content copied to clipboard!');
+        }).catch(() => {
+          alert('Failed to copy to clipboard. Please select and copy the text manually.');
+        });
+      };
+      headerDiv.appendChild(copyBtn);
+
+      doc.body.appendChild(headerDiv);
+
+      // Create pre element with CSV content (textContent is XSS-safe)
+      const pre = doc.createElement('pre');
+      pre.id = 'csv-content';
+      pre.textContent = csvContent; // textContent escapes HTML automatically
+      doc.body.appendChild(pre);
+
     } else {
       throw new Error('Popup blocked. Please allow popups for this site.');
     }

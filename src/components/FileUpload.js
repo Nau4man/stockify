@@ -10,7 +10,6 @@ const FileUpload = forwardRef(({ onFilesSelected, isProcessing, isDarkMode = fal
     clear: () => {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
-        console.log('File input cleared from parent');
       }
     }
   }));
@@ -59,54 +58,47 @@ const FileUpload = forwardRef(({ onFilesSelected, isProcessing, isDarkMode = fal
 
   // Handle file input change
   const handleFileInput = (e) => {
-    console.log('File input changed:', e.target.files);
     const files = Array.from(e.target.files);
-    console.log('Files selected:', files.length);
-    
+
     // Validate files
     const validFiles = [];
     const errors = [];
-    
+
     files.forEach(file => {
-      console.log('Processing file:', file.name, file.type, file.size);
-      
       // Check file type
       if (!file.type.startsWith('image/')) {
         errors.push(`${file.name}: Not an image file`);
         return;
       }
-      
+
       // Check file size (max 20MB)
       const maxSize = 20 * 1024 * 1024; // 20MB
       if (file.size > maxSize) {
         errors.push(`${file.name}: File too large (max 20MB)`);
         return;
       }
-      
+
       // Check if file is empty
       if (file.size === 0) {
         errors.push(`${file.name}: Empty file`);
         return;
       }
-      
+
       validFiles.push(file);
     });
-    
+
     // Show errors if any
     if (errors.length > 0) {
       console.warn('File validation errors:', errors);
-      // You could show these errors to the user if needed
     }
-    
-    console.log('Valid files:', validFiles.length);
-    
+
     if (validFiles.length > 0) {
-      console.log('Calling onFilesSelected with:', validFiles);
       onFilesSelected(validFiles);
-    } else if (files.length > 0) {
-      // All files were invalid
-      console.error('No valid image files selected');
     }
+
+    // IMPORTANT: Reset the file input value so the same file can be selected again
+    // This allows re-uploading a file after it was deleted
+    e.target.value = '';
   };
 
 

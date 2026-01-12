@@ -1,27 +1,19 @@
-// Copy the working parts from the original file
+// Gemini API configuration
 const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
 
-// Debug API key loading
-console.log('API Key Debug:', {
-  hasApiKey: !!GEMINI_API_KEY,
-  keyLength: GEMINI_API_KEY?.length || 0,
-  keyPrefix: GEMINI_API_KEY?.substring(0, 10) || 'none',
-  allEnvVars: Object.keys(process.env).filter(key => key.includes('GEMINI'))
-});
-
-// Gemini model configurations
+// Gemini model configurations - using correct API model names
 export const GEMINI_MODELS = {
-  'gemini-2.5-flash-lite': {
-    name: 'Gemini 2.5 Flash-Lite',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
+  'gemini-3-pro-preview': {
+    name: 'Gemini 3 Pro Preview',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent',
     dailyLimit: 1000,
-    description: 'Best option - 1,000 requests/day'
+    description: 'Latest preview model - 1,000 requests/day'
   },
-  'gemini-2.0-flash-lite': {
-    name: 'Gemini 2.0 Flash-Lite',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
+  'gemini-2.0-flash': {
+    name: 'Gemini 2.0 Flash',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
     dailyLimit: 1000,
-    description: 'Second best - 1,000 requests/day'
+    description: 'Fast & efficient - 1,000 requests/day'
   },
   'gemini-1.5-pro': {
     name: 'Gemini 1.5 Pro',
@@ -32,7 +24,7 @@ export const GEMINI_MODELS = {
 };
 
 // Default model
-export const DEFAULT_MODEL = 'gemini-2.5-flash-lite';
+export const DEFAULT_MODEL = 'gemini-3-pro-preview';
 
 // Validate API configuration
 const validateApiConfig = () => {
@@ -96,17 +88,19 @@ const convertImageToBase64 = (imageOrFile) => {
 
 // Generate metadata for a single image using Gemini Multimodal
 export const generateImageMetadata = async (imageFile, selectedModel = DEFAULT_MODEL, availableModels = Object.keys(GEMINI_MODELS), platformId = 'shutterstock') => {
-  console.log('generateImageMetadata called with:', {
-    imageFile: imageFile?.name,
-    selectedModel,
-    availableModels,
-    platformId
-  });
-  
   // Validate inputs
   if (!imageFile) {
     throw new Error('No image file provided');
   }
+
+  // Validate selected model exists
+  if (!GEMINI_MODELS[selectedModel]) {
+    console.warn(`Invalid model "${selectedModel}", falling back to "${DEFAULT_MODEL}"`);
+    selectedModel = DEFAULT_MODEL;
+  }
+
+  // Filter available models to only include valid ones
+  availableModels = availableModels.filter(model => GEMINI_MODELS[model]);
 
   if (!selectedModel || !GEMINI_MODELS[selectedModel]) {
     throw new Error(`Invalid model: ${selectedModel}`);
@@ -119,8 +113,7 @@ export const generateImageMetadata = async (imageFile, selectedModel = DEFAULT_M
     // Convert image to base64
     const base64Image = await convertImageToBase64(imageFile);
     
-    // Construct the comprehensive prompt
-    console.log('Generating prompt for platform:', platformId);
+    // Construct the comprehensive prompt for the specified platform
     const prompt = `You are generating metadata for stock photography content. 
 The user will specify whether the target platform is Shutterstock or Adobe Stock. 
 Your metadata must strictly follow all rules for the chosen platform, and produce CSV-ready structured data that helps maximize sales.
@@ -130,7 +123,7 @@ GENERAL SAFETY RULES
 ====================
 - All output must be accurate, factual, professional, and free of offensive, derogatory, culturally insensitive, or trademarked brand names (unless editorial and legally permitted).
 - Never guess or assume identity (ethnicity, religion, brand, person) unless clearly identifiable and allowed.
-- Metadata must directly match the content of the image and, where relevant, information in the filename.
+- Metadata must directly match the content of the image and, where relevant, information such as location in the filename.
 
 =======================
 TITLE / DESCRIPTION RULES
@@ -230,24 +223,27 @@ Target platform: ${platformId === 'adobe_stock' ? 'Adobe Stock' : 'Shutterstock'
     // Try models in order of preference
     let response;
     let lastError;
-    
+
+    // API request timeout (30 seconds)
+    const API_TIMEOUT_MS = 30000;
+
     for (const modelKey of availableModels) {
       const currentModel = GEMINI_MODELS[modelKey];
-      
+
+      // Create AbortController for timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
       try {
-        console.log(`Trying model: ${modelKey}`);
-        console.log('API Key Debug:', {
-          hasKey: !!GEMINI_API_KEY,
-          keyLength: GEMINI_API_KEY?.length,
-          keyPrefix: GEMINI_API_KEY?.substring(0, 10),
-          endpoint: currentModel.endpoint
-        });
-        
+        console.log('Attempting API call to:', currentModel.endpoint);
+        console.log('API Key present:', !!GEMINI_API_KEY, 'Length:', GEMINI_API_KEY?.length);
+
         response = await fetch(`${currentModel.endpoint}?key=${GEMINI_API_KEY}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          signal: controller.signal,
           body: JSON.stringify({
             contents: [{
               parts: [
@@ -269,6 +265,8 @@ Target platform: ${platformId === 'adobe_stock' ? 'Adobe Stock' : 'Shutterstock'
           })
         });
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
           const errorText = await response.text();
           console.error('API Response Error:', {
@@ -276,13 +274,52 @@ Target platform: ${platformId === 'adobe_stock' ? 'Adobe Stock' : 'Shutterstock'
             statusText: response.statusText,
             body: errorText
           });
+
+          // Handle 429 Rate Limit specifically
+          if (response.status === 429) {
+            let retryAfterSeconds = 60; // Default to 60 seconds
+
+            // Try to parse retry-after from response
+            try {
+              const errorJson = JSON.parse(errorText);
+              // Look for retryDelay in the error response
+              if (errorJson.error?.details) {
+                for (const detail of errorJson.error.details) {
+                  if (detail.retryDelay) {
+                    // Parse "43s" format
+                    const match = detail.retryDelay.match(/(\d+)s/);
+                    if (match) {
+                      retryAfterSeconds = parseInt(match[1], 10);
+                    }
+                  }
+                }
+              }
+            } catch (parseErr) {
+              // Use default retry time if parsing fails
+            }
+
+            const rateLimitError = new Error(`Rate limit exceeded. Please wait ${retryAfterSeconds} seconds before trying again.`);
+            rateLimitError.isRateLimit = true;
+            rateLimitError.retryAfterSeconds = retryAfterSeconds;
+            rateLimitError.statusCode = 429;
+            throw rateLimitError;
+          }
+
           throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
         }
 
         break; // Success, exit the loop
       } catch (error) {
-        console.error(`Model ${modelKey} failed:`, error);
-        lastError = error;
+        clearTimeout(timeoutId);
+
+        // Handle abort/timeout specifically
+        if (error.name === 'AbortError') {
+          console.error(`Model ${modelKey} timed out after ${API_TIMEOUT_MS}ms`);
+          lastError = new Error(`Request timed out after ${API_TIMEOUT_MS / 1000} seconds`);
+        } else {
+          console.error(`Model ${modelKey} failed:`, error);
+          lastError = error;
+        }
         continue; // Try next model
       }
     }
@@ -295,11 +332,36 @@ Target platform: ${platformId === 'adobe_stock' ? 'Adobe Stock' : 'Shutterstock'
 
     let data;
     try {
-      data = await response.json();
-    } catch (jsonError) {
-      console.error('JSON parsing failed:', jsonError);
-      console.error('Raw response:', response);
-      throw new Error(`API Response Error: Failed to parse JSON response. The API may be returning invalid data.`);
+      const responseText = await response.text();
+      console.log('API Response Status:', response.status);
+      console.log('API Response Text (first 500 chars):', responseText.substring(0, 500));
+
+      // Check if response is empty
+      if (!responseText || responseText.trim() === '') {
+        throw new Error('API returned empty response. Please check your API key.');
+      }
+
+      // Try to parse as JSON
+      try {
+        data = JSON.parse(responseText);
+        console.log('Parsed API response successfully');
+      } catch (parseError) {
+        // Check for common error patterns in the response
+        if (responseText.includes('API key')) {
+          throw new Error('Invalid API key. Please check your REACT_APP_GEMINI_API_KEY in .env file.');
+        }
+        if (responseText.includes('quota') || responseText.includes('rate limit')) {
+          throw new Error('API quota exceeded or rate limited. Please try again later.');
+        }
+        if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+          throw new Error('API returned HTML instead of JSON. This usually means an authentication or configuration error.');
+        }
+        console.error('Failed to parse API response:', responseText.substring(0, 500));
+        throw new Error(`API returned invalid JSON. Response preview: ${responseText.substring(0, 100)}...`);
+      }
+    } catch (fetchError) {
+      console.error('Error reading API response:', fetchError);
+      throw fetchError;
     }
 
     if (!data.candidates || data.candidates.length === 0) {
@@ -324,22 +386,16 @@ Target platform: ${platformId === 'adobe_stock' ? 'Adobe Stock' : 'Shutterstock'
       throw new Error('API Error: No text content generated. The AI model may have failed to process the image.');
     }
 
-    console.log('Generated text:', generatedText);
-    console.log('Generated text length:', generatedText.length);
-    console.log('First 500 chars:', generatedText.substring(0, 500));
-
     // Parse the JSON response
     try {
       // Clean the response text to extract JSON
       const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.error('No JSON pattern found in AI response:', generatedText);
+        console.error('No JSON pattern found in AI response');
         throw new Error('AI Response Error: No valid JSON found in the response. The AI may not have followed the format instructions.');
       }
-      
-      console.log('Extracted JSON:', jsonMatch[0]);
+
       const metadata = JSON.parse(jsonMatch[0]);
-      console.log('Parsed metadata:', metadata);
       
       // Validate and clean the metadata based on platform
       // Handle both old format (lowercase) and new format (capitalized) field names
@@ -545,8 +601,14 @@ Target platform: ${platformId === 'adobe_stock' ? 'Adobe Stock' : 'Shutterstock'
     // Determine error type and provide appropriate fallback
     let errorType = 'unknown';
     let userMessage = error.message || 'An unexpected error occurred';
-    
-    if (error.message.includes('API key')) {
+    let retryAfterSeconds = null;
+
+    // Handle rate limit errors specifically
+    if (error.isRateLimit || error.statusCode === 429) {
+      errorType = 'rate_limit';
+      retryAfterSeconds = error.retryAfterSeconds || 60;
+      userMessage = `Rate limit exceeded. Please wait ${retryAfterSeconds} seconds and try again.`;
+    } else if (error.message.includes('API key')) {
       errorType = 'api_key';
       userMessage = 'API key not configured. Please set your Gemini API key.';
     } else if (error.message.includes('safety') || error.message.includes('blocked')) {
@@ -558,26 +620,47 @@ Target platform: ${platformId === 'adobe_stock' ? 'Adobe Stock' : 'Shutterstock'
     } else if (error.message.includes('network') || error.message.includes('fetch')) {
       errorType = 'network';
       userMessage = 'Network error. Please check your connection and try again.';
+    } else if (error.message.includes('quota') || error.message.includes('rate limit') || error.message.includes('Rate limit')) {
+      errorType = 'rate_limit';
+      userMessage = 'API quota exceeded. Please wait a minute and try again.';
+      retryAfterSeconds = 60;
     }
-    
+
     // Return error metadata
     return {
       filename: imageFile.name,
       error: true,
       errorType: errorType,
       message: userMessage,
-      originalError: error.message
+      originalError: error.message,
+      ...(retryAfterSeconds && { retryAfterSeconds })
     };
   }
 };
 
 // Generate metadata for multiple images
-export const generateMultipleImageMetadata = async (images, progressCallback, selectedModel = DEFAULT_MODEL, availableModels = Object.keys(GEMINI_MODELS), platformId = 'shutterstock') => {
+// isCancelledFn is an optional function that returns true if processing should be cancelled
+export const generateMultipleImageMetadata = async (images, progressCallback, selectedModel = DEFAULT_MODEL, availableModels = Object.keys(GEMINI_MODELS), platformId = 'shutterstock', isCancelledFn = null) => {
   const results = [];
-  
+
   for (let i = 0; i < images.length; i++) {
+    // Check if cancelled before processing each image
+    if (isCancelledFn && isCancelledFn()) {
+      // Mark remaining images as cancelled
+      for (let j = i; j < images.length; j++) {
+        results.push({
+          filename: images[j].name,
+          error: true,
+          errorType: 'cancelled',
+          message: 'Processing was cancelled',
+          originalError: 'User cancelled'
+        });
+      }
+      break;
+    }
+
     const file = images[i];
-    
+
     try {
       progressCallback(i + 1, images.length, file.name);
       const metadata = await generateImageMetadata(file, selectedModel, availableModels, platformId);
@@ -593,12 +676,11 @@ export const generateMultipleImageMetadata = async (images, progressCallback, se
       });
     }
   }
-  
+
   return results;
 };
 
 // Retry generating metadata for a specific image
 export const retryImageMetadata = async (imageFile, selectedModel = DEFAULT_MODEL, availableModels = Object.keys(GEMINI_MODELS), platformId = 'shutterstock') => {
-  console.log(`Retrying metadata generation for: ${imageFile.name} with model: ${selectedModel}`);
   return generateImageMetadata(imageFile, selectedModel, availableModels, platformId);
 };

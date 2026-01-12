@@ -1,51 +1,79 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 
 const ImagePreview = ({ images, onRemoveImage, onImageClick, onImageSelect, selectedImageIndex, isDarkMode = false }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [imagesPerPage] = useState(12); // Show 12 images per page
-  
+
+  // Use ref to track created URLs for proper cleanup (prevents memory leaks)
+  const urlsRef = useRef(new Map());
 
   // Calculate pagination
   const totalPages = images ? Math.ceil(images.length / imagesPerPage) : 0;
   const startIndex = (currentPage - 1) * imagesPerPage;
   const endIndex = startIndex + imagesPerPage;
-  
+
   // Memoize currentImages to prevent unnecessary re-renders
   const currentImages = useMemo(() => {
     return images ? images.slice(startIndex, endIndex) : [];
   }, [images, startIndex, endIndex]);
 
-  // Memoize image URLs to prevent unnecessary re-renders
+  // Create stable image URLs - only create new URLs when images actually change
   const imageUrls = useMemo(() => {
     if (!currentImages.length) return new Map();
-    const urls = new Map();
+
+    const newUrls = new Map();
+    const oldUrls = urlsRef.current;
+
     currentImages.forEach((image, index) => {
-      urls.set(startIndex + index, URL.createObjectURL(image));
+      const actualIndex = startIndex + index;
+      // Use existing URL if the image object is the same (by reference)
+      // This prevents creating duplicate URLs for the same image
+      const existingEntry = Array.from(oldUrls.entries()).find(
+        ([, data]) => data.image === image
+      );
+
+      if (existingEntry) {
+        newUrls.set(actualIndex, { url: existingEntry[1].url, image });
+      } else {
+        // Create new URL only for new images
+        const url = URL.createObjectURL(image);
+        newUrls.set(actualIndex, { url, image });
+      }
     });
-    return urls;
+
+    // Revoke URLs that are no longer needed
+    oldUrls.forEach((data, key) => {
+      const stillInUse = Array.from(newUrls.values()).some(
+        newData => newData.url === data.url
+      );
+      if (!stillInUse) {
+        URL.revokeObjectURL(data.url);
+      }
+    });
+
+    // Update ref with current URLs
+    urlsRef.current = newUrls;
+
+    return newUrls;
   }, [currentImages, startIndex]);
 
-  // Cleanup image URLs to prevent memory leaks
+  // Cleanup all URLs on unmount
   useEffect(() => {
     return () => {
-      imageUrls.forEach(url => URL.revokeObjectURL(url));
+      urlsRef.current.forEach(data => URL.revokeObjectURL(data.url));
+      urlsRef.current.clear();
     };
-  }, [imageUrls]);
+  }, []);
+
+  // Helper to get URL from the map
+  const getImageUrl = (index) => {
+    const data = imageUrls.get(index);
+    return data ? data.url : null;
+  };
 
   if (!images || images.length === 0) {
     return null;
   }
-
-  // Debug logging
-  console.log('ImagePreview render:', {
-    imagesLength: images?.length || 0,
-    images: images,
-    currentImagesLength: currentImages.length,
-    currentPage,
-    totalPages,
-    startIndex,
-    endIndex
-  });
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -82,16 +110,7 @@ const ImagePreview = ({ images, onRemoveImage, onImageClick, onImageSelect, sele
         ) : (
           currentImages.map((image, index) => {
             const actualIndex = startIndex + index;
-            const imageUrl = imageUrls.get(actualIndex);
-            
-            // Debug logging for each image
-            console.log(`Image ${actualIndex}:`, {
-              name: image.name,
-              size: image.size,
-              type: image.type,
-              url: imageUrl,
-              hasUrl: !!imageUrl
-            });
+            const imageUrl = getImageUrl(actualIndex);
             
             return (
             <div key={actualIndex} className="relative group">
@@ -106,20 +125,10 @@ const ImagePreview = ({ images, onRemoveImage, onImageClick, onImageSelect, sele
                 }}
               >
                 <img
-                  src={imageUrls.get(actualIndex)}
+                  src={getImageUrl(actualIndex)}
                   alt={image.name}
                   className="w-full h-full object-cover"
-                  loading="lazy" // Lazy load images for better performance
-                  onError={(e) => {
-                    console.error(`Failed to load image ${actualIndex}:`, {
-                      name: image.name,
-                      url: imageUrls.get(actualIndex),
-                      error: e
-                    });
-                  }}
-                  onLoad={() => {
-                    console.log(`Successfully loaded image ${actualIndex}:`, image.name);
-                  }}
+                  loading="lazy"
                 />
               </div>
               

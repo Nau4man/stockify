@@ -8,9 +8,8 @@ import FailedImages from './components/FailedImages';
 import ToastContainer from './components/ToastContainer';
 import { generateMultipleImageMetadata, retryImageMetadata, DEFAULT_MODEL, GEMINI_MODELS } from './utils/geminiApi';
 import { generateCSV, downloadCSV, showCSVInNewWindow, validateMetadata, fixCategoryMappings } from './utils/csvGenerator';
-import { getRateLimitedModels } from './utils/rateLimitTracker';
+import { getRateLimitedModels, isModelRateLimited, getNextAvailableModel, hasAvailableModels } from './utils/rateLimitTracker';
 import { getPlatformConfig, getAvailablePlatforms } from './utils/platformConfig';
-import debugEnv from './debug-env';
 
 function App() {
   const [images, setImages] = useState([]);
@@ -24,7 +23,15 @@ function App() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showCSVPreview, setShowCSVPreview] = useState(false);
   const [retryingImages, setRetryingImages] = useState(new Set());
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_MODEL);
+  // Initialize with DEFAULT_MODEL, but validate it exists
+  const [selectedModel, setSelectedModel] = useState(() => {
+    // Ensure the default model exists in GEMINI_MODELS
+    if (GEMINI_MODELS[DEFAULT_MODEL]) {
+      return DEFAULT_MODEL;
+    }
+    // Fallback to first available model
+    return Object.keys(GEMINI_MODELS)[0];
+  });
   const [selectedPlatform, setSelectedPlatform] = useState('shutterstock');
   const [rateLimitNotification, setRateLimitNotification] = useState(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -40,10 +47,6 @@ function App() {
   const [showPlatformInfoModal, setShowPlatformInfoModal] = useState(false);
   const [useDemoData, setUseDemoData] = useState(false);
   
-  // Debug platform state changes
-  useEffect(() => {
-    console.log('Platform changed to:', selectedPlatform);
-  }, [selectedPlatform]);
 
   // Demo data generation for development
   const generateDemoMetadata = useCallback((imageFiles) => {
@@ -137,16 +140,23 @@ function App() {
   }, [showModelSelector, showPlatformSelector]);
   const imagesRef = useRef([]);
   const fileInputRef = useRef(null);
+
+  // Ref to track retrying images synchronously (prevents race conditions on rapid clicks)
+  const retryingImagesRef = useRef(new Set());
   
+  // Validate and fix selected model if it doesn't exist (handles hot reload issues)
+  useEffect(() => {
+    if (!GEMINI_MODELS[selectedModel]) {
+      const validModel = Object.keys(GEMINI_MODELS)[0];
+      console.warn(`Invalid model "${selectedModel}" detected, switching to "${validModel}"`);
+      setSelectedModel(validModel);
+    }
+  }, [selectedModel]);
+
   // Toast management functions
   const addToast = useCallback((message, type = 'info', duration = 4000) => {
-    console.log('Adding toast:', { message, type, duration });
     const id = Date.now() + Math.random();
-    setToasts(prev => {
-      const newToasts = [...prev, { id, message, type, duration }];
-      console.log('Toast state updated:', newToasts.length, 'toasts');
-      return newToasts;
-    });
+    setToasts(prev => [...prev, { id, message, type, duration }]);
   }, []);
 
   const removeToast = useCallback((id) => {
@@ -191,52 +201,25 @@ function App() {
 
   // Handle file selection
   const handleFilesSelected = useCallback((selectedImages) => {
-    console.log('handleFilesSelected called with:', selectedImages);
-    console.log('selectedImages length:', selectedImages.length);
-    console.log('selectedImages details:', selectedImages.map(img => ({
-      name: img.name,
-      size: img.size,
-      type: img.type
-    })));
-    
-    // Get current images from state (more reliable than ref)
-    console.log('Current images from state:', images.length);
-    console.log('Current images details:', images.map(img => ({
-      name: img.name,
-      size: img.size,
-      type: img.type
-    })));
-    
     // Check for duplicates based on name, size, and type
     const newImages = selectedImages.filter(newImage => {
-      const isDuplicate = images.some(existingImage => 
+      const isDuplicate = images.some(existingImage =>
         existingImage.name === newImage.name &&
         existingImage.size === newImage.size &&
         existingImage.type === newImage.type
       );
-      console.log(`Checking ${newImage.name}: isDuplicate = ${isDuplicate}`);
       return !isDuplicate;
     });
 
     const duplicateCount = selectedImages.length - newImages.length;
     const addedCount = newImages.length;
-    
-    console.log('New images to add:', addedCount, 'Duplicates:', duplicateCount);
-    console.log('New images details:', newImages.map(img => ({
-      name: img.name,
-      size: img.size,
-      type: img.type
-    })));
-    
+
     // Show feedback messages
     if (duplicateCount > 0 && addedCount > 0) {
-      console.log('Showing warning toast');
       addToast(`${addedCount} image(s) added successfully. ${duplicateCount} duplicate(s) skipped.`, 'warning');
     } else if (duplicateCount > 0 && addedCount === 0) {
-      console.log('Showing error toast');
       addToast(`Image already uploaded! ${duplicateCount} duplicate(s) skipped.`, 'error');
     } else if (addedCount > 0) {
-      console.log('Showing success toast');
       addToast(`${addedCount} image(s) added successfully!`, 'success');
     }
 
@@ -252,12 +235,7 @@ function App() {
     }));
 
     // Update images state
-    console.log('Updating images state with new image objects:', imageObjects.length);
-    setImages(prevImages => {
-      const updatedImages = [...prevImages, ...imageObjects];
-      console.log('Updated images count:', updatedImages.length);
-      return updatedImages;
-    });
+    setImages(prevImages => [...prevImages, ...imageObjects]);
     // Only reset selected image index if current selection is invalid
     setSelectedImageIndex(prevIndex => {
       // If current selection is still valid (has metadata), keep it
@@ -268,7 +246,7 @@ function App() {
       const firstProcessedIndex = metadata.findIndex(item => item && !item.error);
       return firstProcessedIndex >= 0 ? firstProcessedIndex : 0;
     });
-  }, [addToast, images]);
+  }, [addToast, images, metadata]);
 
   // Handle model selection change
   const handleModelChange = useCallback((newModel) => {
@@ -308,31 +286,38 @@ function App() {
 
   // Clear all images
   const handleClearAll = useCallback(() => {
-    console.log('Clearing all images and resetting file input');
     setImages([]);
     setMetadata([]);
     setShowPreview(false);
     setError(null);
     setSelectedImageIndex(0);
-    
+
     // Reset the file input to allow re-uploading the same files
     if (fileInputRef.current) {
       fileInputRef.current.clear();
-      console.log('File input cleared via ref method');
     }
   }, []);
 
   // Process images with AI
   const handleProcessImages = useCallback(async () => {
-    // Debug environment variables
-    const envDebug = debugEnv();
-    console.log('Environment Debug:', envDebug);
-    console.log('Current selectedModel:', selectedModel);
-    console.log('Available GEMINI_MODELS:', Object.keys(GEMINI_MODELS));
-    
     if (images.length === 0) {
       addToast('Please upload at least one image', 'error');
       return;
+    }
+
+    // Check model availability before processing
+    if (!useDemoData) {
+      if (!hasAvailableModels()) {
+        addToast('All AI models are currently rate-limited. Please try again later.', 'error');
+        return;
+      }
+
+      if (isModelRateLimited(selectedModel)) {
+        const nextModel = getNextAvailableModel(selectedModel);
+        if (nextModel) {
+          addToast(`Selected model is rate-limited. Using ${GEMINI_MODELS[nextModel]?.name || nextModel} instead.`, 'warning');
+        }
+      }
     }
 
     // Validate images before processing
@@ -362,24 +347,15 @@ function App() {
 
       if (useDemoData) {
         // Use demo data for development
-        console.log('Using demo data for development...');
-        
         // Simulate processing delay
         for (let i = 0; i < validImages.length; i++) {
           setProgress({ current: i + 1, total: validImages.length, currentFile: validImages[i].name });
           await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay per image
         }
-        
+
         result = generateDemoMetadata(validImages);
       } else {
         // Use real API calls
-        console.log('Calling generateMultipleImageMetadata with:', {
-          validImages: validImages.length,
-          selectedModel,
-          availableModels: Object.keys(GEMINI_MODELS),
-          selectedPlatform
-        });
-        
         result = await generateMultipleImageMetadata(
           validImages,
           (current, total, currentFile) => {
@@ -405,12 +381,6 @@ function App() {
           ? 'Demo data generated successfully!'
           : 'All images processed successfully!';
         addToast(message, 'success');
-      }
-
-      // Show success message
-      const successful = result.filter(item => !item.error).length;
-      if (successful > 0) {
-        console.log(`Successfully processed ${successful} out of ${result.length} images`);
       }
 
     } catch (err) {
@@ -471,7 +441,6 @@ function App() {
   // Handle metadata edit (now handled by inline editing)
   const handleEditMetadata = useCallback((metadataItem) => {
     // This function is kept for compatibility but inline editing handles everything
-    console.log('Edit metadata requested for:', metadataItem);
   }, []);
 
   const handleSaveMetadata = useCallback((updatedMetadata, index = null) => {
@@ -499,79 +468,111 @@ function App() {
 
   // Retry failed image processing
   const handleRetryImage = useCallback(async (imageFile, metadataIndex) => {
-    if (retryingImages.has(metadataIndex)) return; // Prevent duplicate retries
-    
+    // Use ref for synchronous check to prevent race conditions on rapid clicks
+    if (retryingImagesRef.current.has(metadataIndex)) return;
+
+    // Immediately mark as retrying in ref (synchronous)
+    retryingImagesRef.current.add(metadataIndex);
     setRetryingImages(prev => new Set(prev).add(metadataIndex));
-    
+
     try {
       const newMetadata = await retryImageMetadata(imageFile, selectedModel, Object.keys(GEMINI_MODELS), selectedPlatform);
-      
+
       setMetadata(prevMetadata => {
-        const updatedMetadata = prevMetadata.map((item, index) => 
+        const updatedMetadata = prevMetadata.map((item, index) =>
           index === metadataIndex ? newMetadata : item
         );
-        
+
         // Clear error if no failed images remain after successful retry
         const hasFailedImages = updatedMetadata.some(item => item.error);
         if (!hasFailedImages) {
           setError(null);
         }
-        
+
         return updatedMetadata;
       });
     } catch (error) {
       console.error('Retry failed:', error);
       setError(`Retry failed for ${imageFile.name}: ${error.message}`);
     } finally {
+      // Clean up both ref and state
+      retryingImagesRef.current.delete(metadataIndex);
       setRetryingImages(prev => {
         const newSet = new Set(prev);
         newSet.delete(metadataIndex);
         return newSet;
       });
     }
-  }, [retryingImages, selectedModel, selectedPlatform]);
+  }, [selectedModel, selectedPlatform]);
 
   // Retry all failed images
   const handleRetryAllFailed = useCallback(async () => {
     const failedIndices = metadata
       .map((item, index) => item.error ? index : null)
       .filter(index => index !== null);
-    
+
     if (failedIndices.length === 0) return;
-    
-    // Add all failed indices to retrying set
+
+    // Add all failed indices to retrying set (both ref and state)
+    retryingImagesRef.current = new Set(failedIndices);
     setRetryingImages(new Set(failedIndices));
-    
+
     try {
       const retryPromises = failedIndices.map(async (index) => {
         const imageFile = images[index];
         const newMetadata = await retryImageMetadata(imageFile, selectedModel, Object.keys(GEMINI_MODELS), selectedPlatform);
         return { index, newMetadata };
       });
-      
-      const results = await Promise.all(retryPromises);
-      
+
+      // Use Promise.allSettled to handle partial failures gracefully
+      const results = await Promise.allSettled(retryPromises);
+
+      let successCount = 0;
+      let failCount = 0;
+
       setMetadata(prevMetadata => {
         const newMetadata = [...prevMetadata];
-        results.forEach(({ index, newMetadata: result }) => {
-          newMetadata[index] = result;
+        results.forEach((result, i) => {
+          const index = failedIndices[i];
+          if (result.status === 'fulfilled') {
+            newMetadata[index] = result.value.newMetadata;
+            successCount++;
+          } else {
+            // Keep the original error metadata but update the message
+            newMetadata[index] = {
+              ...prevMetadata[index],
+              error: true,
+              message: result.reason?.message || 'Retry failed'
+            };
+            failCount++;
+          }
         });
-        
+
         // Clear error if no failed images remain after retry all
         const hasFailedImages = newMetadata.some(item => item.error);
         if (!hasFailedImages) {
           setError(null);
         }
-        
+
         return newMetadata;
       });
+
+      // Show appropriate toast message
+      if (failCount > 0 && successCount > 0) {
+        addToast(`Retried ${successCount + failCount} images: ${successCount} succeeded, ${failCount} failed`, 'warning');
+      } else if (failCount > 0) {
+        addToast(`All ${failCount} retries failed`, 'error');
+      } else {
+        addToast(`Successfully retried ${successCount} images`, 'success');
+      }
     } catch (error) {
       console.error('Retry all failed:', error);
-      setError(`Some retries failed: ${error.message}`);
+      setError(`Retry operation failed: ${error.message}`);
     } finally {
+      retryingImagesRef.current.clear();
       setRetryingImages(new Set());
     }
-  }, [metadata, images, selectedModel, selectedPlatform]);
+  }, [metadata, images, selectedModel, selectedPlatform, addToast]);
 
   // Handle footer navigation
   const handleFooterNavigation = useCallback((section) => {
@@ -610,23 +611,126 @@ function App() {
         console.warn(`Skipping ${errorMetadata.length} images with errors in CSV generation`);
       }
 
-      // Fix category mappings and validate all valid metadata before generating CSV
+      // Fix category mappings and normalize platform-specific fields before validation/CSV
       const validationErrors = [];
-      const fixedMetadata = validMetadata.map(item => fixCategoryMappings(item, selectedPlatform));
+      const categoryChanges = []; // Track category conversions for user notification
+
+      let fixedMetadata = validMetadata.map(item => {
+        const fixed = fixCategoryMappings(item, selectedPlatform);
+        // Track if categories were changed
+        if (item.categories !== fixed.categories) {
+          categoryChanges.push({
+            filename: item.filename,
+            original: item.categories,
+            fixed: fixed.categories
+          });
+        }
+        return fixed;
+      });
+
+      // Adobe Stock normalization: ensure title, numeric category, and keyword cap
+      if (selectedPlatform === 'adobe_stock') {
+        const adobePlatform = getPlatformConfig('adobe_stock');
+        const categoryNameToId = (name) => {
+          if (!name) return '';
+          const match = adobePlatform.categories.find(c => String(c.name).toLowerCase() === String(name).toLowerCase());
+          return match ? String(match.id) : '';
+        };
+
+        fixedMetadata = fixedMetadata.map(item => {
+          // Ensure title exists (fallback to description, trimmed to 200 chars)
+          const title = (item.title && String(item.title).trim().length > 0)
+            ? String(item.title).slice(0, 200)
+            : (item.description ? String(item.description).slice(0, 200) : '');
+
+          // Normalize category to numeric ID if a name was provided
+          let category = item.category || '';
+          if (category) {
+            const numeric = parseInt(category, 10);
+            if (isNaN(numeric) || numeric < 1 || numeric > 21) {
+              category = categoryNameToId(category);
+            } else {
+              category = String(numeric);
+            }
+          }
+
+          // Cap keywords to 49 (Adobe limit)
+          let keywords = item.keywords || '';
+          if (keywords) {
+            const parts = String(keywords).split(',').map(k => k.trim()).filter(Boolean);
+            keywords = parts.slice(0, 49).join(', ');
+          }
+
+          return {
+            ...item,
+            title,
+            category,
+            keywords
+          };
+        });
+      }
+
+      // Shutterstock normalization: ensure required fields and sensible fallbacks
+      if (selectedPlatform === 'shutterstock') {
+        fixedMetadata = fixedMetadata.map(item => {
+          // Ensure description exists (fallback to title)
+          const description = (item.description && String(item.description).trim().length > 0)
+            ? String(item.description)
+            : (item.title ? String(item.title) : '');
+
+          // Ensure categories present; default to 'Miscellaneous'
+          let categories = item.categories;
+          if (Array.isArray(categories)) {
+            categories = categories.join(', ');
+          }
+          if (!categories || String(categories).trim().length === 0) {
+            categories = 'Miscellaneous';
+          }
+
+          // Normalize keywords string
+          let keywords = item.keywords || '';
+          if (keywords) {
+            const parts = String(keywords).split(',').map(k => k.trim()).filter(Boolean);
+            keywords = parts.join(', ');
+          }
+
+          return {
+            ...item,
+            description,
+            categories,
+            keywords,
+            editorial: item.editorial === 'yes' ? 'yes' : 'no',
+            matureContent: 'no',
+            illustration: 'no'
+          };
+        });
+      }
       
       fixedMetadata.forEach((item, index) => {
         const validation = validateMetadata(item, selectedPlatform);
         if (!validation.isValid) {
-          validationErrors.push(`Image ${index + 1}: ${validation.errors.join(', ')}`);
+          validationErrors.push({ index, messages: validation.errors });
         }
       });
 
-      if (validationErrors.length > 0) {
-        setError(`Validation errors: ${validationErrors.join('; ')}`);
+      // If some rows are invalid, skip them but allow download of valid ones
+      const validForCsv = fixedMetadata.filter((_, idx) => !validationErrors.find(e => e.index === idx));
+
+      if (validForCsv.length === 0) {
+        setError('No valid rows to download after validation. Please fix metadata issues.');
         return;
       }
 
-      const csvContent = generateCSV(fixedMetadata, selectedPlatform);
+      if (validationErrors.length > 0) {
+        addToast(`Skipped ${validationErrors.length} invalid item(s). Downloading ${validForCsv.length} valid item(s).`, 'warning');
+      }
+
+      // Notify user about category auto-corrections
+      if (categoryChanges.length > 0) {
+        addToast(`Auto-corrected categories for ${categoryChanges.length} image(s) to match platform requirements.`, 'info');
+      }
+
+      const csvContent = generateCSV(validForCsv, selectedPlatform);
       const timestamp = new Date().toISOString().split('T')[0];
       const platform = getPlatformConfig(selectedPlatform);
       const platformName = platform.name.toLowerCase().replace(/\s+/g, '_');
@@ -804,7 +908,6 @@ function App() {
                           Select Platform
                         </div>
                         {getAvailablePlatforms().map((platform) => {
-                          const platformConfig = getPlatformConfig(platform.id);
                           return (
                             <div key={platform.id} className="group">
                               <button
@@ -994,40 +1097,41 @@ function App() {
                         }}
                       />
                       
-                      {/* Hover Actions Overlay */}
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center rounded-lg transition-all duration-200">
-                        <div className="opacity-0 group-hover:opacity-100 flex space-x-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedImageIndex(index);
-                              setSelectedImage(images[index]);
-                              setCurrentImageIndex(index);
-                              setShowImageModal(true);
-                            }}
-                            className={`p-1 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded shadow-lg`}
-                            title="View full size"
-                          >
-                            <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveImage(index);
-                            }}
-                            disabled={isProcessing}
-                            className={`p-1 ${isDarkMode ? 'bg-red-800 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} rounded shadow-lg disabled:opacity-50 disabled:cursor-not-allowed`}
-                            title="Remove this image"
-                          >
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                      {/* Hover Actions Overlay - Hidden during processing */}
+                      {!isProcessing && (
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center rounded-lg transition-all duration-200">
+                          <div className="opacity-0 group-hover:opacity-100 flex space-x-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedImageIndex(index);
+                                setSelectedImage(images[index]);
+                                setCurrentImageIndex(index);
+                                setShowImageModal(true);
+                              }}
+                              className={`p-1 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded shadow-lg`}
+                              title="View full size"
+                            >
+                              <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveImage(index);
+                              }}
+                              className={`p-1 ${isDarkMode ? 'bg-red-800 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} rounded shadow-lg`}
+                              title="Remove this image"
+                            >
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Processing Status Badge */}
                       {metadata[index] && (
@@ -1055,15 +1159,18 @@ function App() {
             {images.length > 0 && (
               <div className="mt-6">
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Main Process Button */}
                   <button
                     onClick={handleProcessImages}
                     disabled={isProcessing}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-3 shadow-md hover:shadow-lg border-2 border-indigo-500 hover:border-indigo-400 transform hover:-translate-y-0.5 cursor-pointer"
+                    className={`px-6 py-3 bg-indigo-600 text-white rounded-lg transition-all duration-200 flex items-center gap-3 shadow-md border-2 border-indigo-500 ${
+                      isProcessing
+                        ? 'opacity-75 cursor-not-allowed'
+                        : 'hover:bg-indigo-700 hover:shadow-lg hover:border-indigo-400 transform hover:-translate-y-0.5 cursor-pointer'
+                    }`}
                   >
                     {isProcessing ? (
                       <>
-                        <div className="animate-spin rounded-full h-6 w-6 border-3 border-white border-t-transparent"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                         <div className="text-left">
                           <div className="font-bold text-lg">AI Processing...</div>
                           <div className="text-sm opacity-90">Generating metadata</div>
@@ -1075,7 +1182,7 @@ function App() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
                         <div className="text-left">
-                          <div className="font-bold text-lg">📸 Generate Stock Metadata</div>
+                          <div className="font-bold text-lg">Generate Stock Metadata</div>
                           <div className="text-sm opacity-90">AI keywords, titles & descriptions</div>
                         </div>
                         <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1085,23 +1192,22 @@ function App() {
                     )}
                   </button>
 
-
-                  {/* Clear All Button - Secondary Action */}
-                  <button
-                    onClick={handleClearAll}
-                    disabled={isProcessing}
-                    className={`px-4 py-3 rounded-lg border-2 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isDarkMode 
-                        ? 'bg-transparent border-red-500 text-red-400 hover:bg-red-500/10 hover:border-red-400' 
-                        : 'bg-transparent border-red-500 text-red-600 hover:bg-red-50 hover:border-red-400'
-                    }`}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    <span className="font-medium text-sm">Clear All</span>
-                  </button>
-
+                  {/* Clear All Button - hidden during processing */}
+                  {!isProcessing && (
+                    <button
+                      onClick={handleClearAll}
+                      className={`px-4 py-3 rounded-lg border-2 transition-all duration-200 flex items-center gap-2 ${
+                        isDarkMode
+                          ? 'bg-transparent border-red-500 text-red-400 hover:bg-red-500/10 hover:border-red-400'
+                          : 'bg-transparent border-red-500 text-red-600 hover:bg-red-50 hover:border-red-400'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span className="font-medium text-sm">Clear All</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}

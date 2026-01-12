@@ -1,15 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { isModelRateLimited, getTimeUntilReset, formatTimeRemaining } from '../utils/rateLimitTracker';
 
 const RateLimitIndicator = ({ modelKey, className = "", isDarkMode = false }) => {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isRateLimited, setIsRateLimited] = useState(false);
 
+  // Use ref to store the current modelKey for the interval callback
+  const modelKeyRef = useRef(modelKey);
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    modelKeyRef.current = modelKey;
+  }, [modelKey]);
+
   useEffect(() => {
     const checkRateLimit = () => {
-      const rateLimited = isModelRateLimited(modelKey);
-      const timeUntilReset = getTimeUntilReset(modelKey);
-      
+      const currentModelKey = modelKeyRef.current;
+      const rateLimited = isModelRateLimited(currentModelKey);
+      const timeUntilReset = getTimeUntilReset(currentModelKey);
+
       setIsRateLimited(rateLimited);
       setTimeRemaining(timeUntilReset);
     };
@@ -17,14 +26,11 @@ const RateLimitIndicator = ({ modelKey, className = "", isDarkMode = false }) =>
     // Check immediately
     checkRateLimit();
 
-    // Update every second if rate limited
-    let interval;
-    if (isModelRateLimited(modelKey)) {
-      interval = setInterval(checkRateLimit, 1000);
-    }
+    // Always set up interval to check periodically (handles dynamic rate limit changes)
+    const interval = setInterval(checkRateLimit, 1000);
 
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
   }, [modelKey]);
 
