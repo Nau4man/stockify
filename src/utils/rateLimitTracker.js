@@ -5,9 +5,10 @@ const RATE_LIMIT_STORAGE_KEY = 'gemini_rate_limits';
 
 // Default rate limits (requests per day) - these reset every 24 hours
 export const MODEL_RATE_LIMITS = {
-  'gemini-3-pro-preview': 1000,
-  'gemini-2.0-flash': 1000,
-  'gemini-1.5-pro': 50
+  'gemini-3-flash-preview': 1000,
+  'gemini-3-flash': 1000,
+  'gemini-2.5-flash': 1000,
+  'gemini-2.5-flash-lite': 1000
 };
 
 // Get stored rate limit data
@@ -18,15 +19,6 @@ const getStoredRateLimits = () => {
   } catch (error) {
     console.error('Error reading rate limit data:', error);
     return {};
-  }
-};
-
-// Save rate limit data
-const saveRateLimits = (data) => {
-  try {
-    localStorage.setItem(RATE_LIMIT_STORAGE_KEY, JSON.stringify(data));
-  } catch (error) {
-    console.error('Error saving rate limit data:', error);
   }
 };
 
@@ -42,23 +34,8 @@ export const isModelRateLimited = (modelKey) => {
   return modelData.date === today && modelData.isRateLimited;
 };
 
-// Mark a model as rate limited
-export const markModelRateLimited = (modelKey) => {
-  const rateLimits = getStoredRateLimits();
-  const today = new Date().toDateString();
-  
-  rateLimits[modelKey] = {
-    date: today,
-    isRateLimited: true,
-    timestamp: Date.now()
-  };
-  
-  saveRateLimits(rateLimits);
-  console.log(`Model ${modelKey} marked as rate limited`);
-};
-
 // Get time until rate limit resets (in milliseconds)
-export const getTimeUntilReset = (modelKey) => {
+const getTimeUntilReset = (modelKey) => {
   const rateLimits = getStoredRateLimits();
   const modelData = rateLimits[modelKey];
   
@@ -75,7 +52,7 @@ export const getTimeUntilReset = (modelKey) => {
 };
 
 // Format time remaining in a human-readable format
-export const formatTimeRemaining = (milliseconds) => {
+const formatTimeRemaining = (milliseconds) => {
   if (milliseconds <= 0) return 'Available now';
   
   const hours = Math.floor(milliseconds / (1000 * 60 * 60));
@@ -89,14 +66,6 @@ export const formatTimeRemaining = (milliseconds) => {
   } else {
     return `${seconds}s`;
   }
-};
-
-// Clear rate limit for a model (when it's successfully used)
-export const clearModelRateLimit = (modelKey) => {
-  const rateLimits = getStoredRateLimits();
-  delete rateLimits[modelKey];
-  saveRateLimits(rateLimits);
-  console.log(`Rate limit cleared for model ${modelKey}`);
 };
 
 // Get all rate limited models

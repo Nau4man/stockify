@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 
 // Reusable field component for form editing - defined outside to prevent recreation
 const FormField = ({ 
@@ -83,6 +83,134 @@ const FormField = ({
   );
 };
 
+const ThumbnailItem = memo(({
+  actualIndex,
+  image,
+  imageUrl,
+  isSelected,
+  hasError,
+  isDarkMode,
+  isLoaded,
+  onSelect,
+  onLoad,
+  onError,
+  onPreview,
+  onRemove
+}) => {
+  const handleSelect = useCallback(() => {
+    onSelect?.(actualIndex);
+  }, [onSelect, actualIndex]);
+
+  const handlePreview = useCallback((event) => {
+    event.stopPropagation();
+    onPreview?.(actualIndex);
+  }, [onPreview, actualIndex]);
+
+  const handleRemove = useCallback((event) => {
+    event.stopPropagation();
+    onRemove?.(actualIndex);
+  }, [onRemove, actualIndex]);
+
+  const handleImageLoad = useCallback(() => {
+    onLoad?.(actualIndex);
+  }, [onLoad, actualIndex]);
+
+  const handleImageError = useCallback(() => {
+    onError?.(actualIndex);
+  }, [onError, actualIndex]);
+
+  return (
+    <div
+      className={`relative group cursor-pointer transition-all duration-200 ${
+        isSelected 
+          ? 'ring-2 ring-blue-400 ring-offset-1 shadow-lg shadow-blue-500/25' 
+          : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-1 hover:shadow-md'
+      } ${isDarkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`}
+      onClick={handleSelect}
+    >
+      {/* Thumbnail Image */}
+      <div className={`relative ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden aspect-square`}>
+        {!isLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
+            <div className="relative">
+              <div className="w-6 h-6 border-2 border-gray-300 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-6 h-6 border-2 border-transparent border-t-blue-500 rounded-full animate-spin"></div>
+            </div>
+          </div>
+        )}
+        <img
+          src={imageUrl}
+          alt={image.name}
+          className="w-full h-full object-cover"
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+          style={{ opacity: isLoaded ? 1 : 0 }}
+        />
+
+        {/* Error Overlay */}
+        {hasError && (
+          <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+            <div className="bg-red-500 text-white rounded-full p-1">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+          </div>
+        )}
+
+        {/* Hover Actions */}
+        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center">
+          <div className="opacity-0 group-hover:opacity-100 flex space-x-1">
+            <button
+              onClick={handlePreview}
+              className={`p-2 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-lg shadow-lg`}
+              title="View full size"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+              </svg>
+            </button>
+            {hasError && (
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  console.log('Retry image:', actualIndex);
+                }}
+                className={`p-2 ${isDarkMode ? 'bg-yellow-800 hover:bg-yellow-700' : 'bg-yellow-500 hover:bg-yellow-600'} rounded-lg shadow-lg`}
+                title="Retry processing"
+              >
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={handleRemove}
+              className={`p-2 ${isDarkMode ? 'bg-red-800 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} rounded-lg shadow-lg`}
+              title="Remove image"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Selection Indicator */}
+        {isSelected && (
+          <div className="absolute top-2 right-2">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full p-1.5 shadow-lg shadow-blue-500/30">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 const MetadataPreview = ({
   metadata,
   isVisible,
@@ -101,7 +229,8 @@ const MetadataPreview = ({
   const [editValues, setEditValues] = useState({});
   const [currentPage, setCurrentPage] = useState(0);
   const [isChangingPage, setIsChangingPage] = useState(false);
-  
+  const pageChangeTimerRef = useRef(null);
+
   // Get the current metadata item based on selectedImageIndex
   const currentMetadata = metadata && Array.isArray(metadata) ? metadata[selectedImageIndex] : null;
 
@@ -350,15 +479,21 @@ const MetadataPreview = ({
   // Debounced page change to prevent rapid clicking
   const handlePageChange = useCallback((newPage) => {
     if (isChangingPage) return;
-    
+
     setIsChangingPage(true);
     setCurrentPage(newPage);
-    
+
     // Reset the changing flag after a short delay
-    setTimeout(() => {
+    clearTimeout(pageChangeTimerRef.current);
+    pageChangeTimerRef.current = setTimeout(() => {
       setIsChangingPage(false);
     }, 100);
   }, [isChangingPage]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => clearTimeout(pageChangeTimerRef.current);
+  }, []);
 
   // No cleanup needed since we're using existing URLs from App.js
 
@@ -462,105 +597,25 @@ const MetadataPreview = ({
                 const actualIndex = startIndex + index;
                 const isSelected = actualIndex === selectedImageIndex;
                 const hasError = metadata[actualIndex]?.error;
-                
+                const imageUrl = imageUrls[actualIndex];
+                const isLoaded = loadedImages.has(actualIndex);
+
                 return (
-                  <div
+                  <ThumbnailItem
                     key={actualIndex}
-                    className={`relative group cursor-pointer transition-all duration-200 ${
-                      isSelected 
-                        ? 'ring-2 ring-blue-400 ring-offset-1 shadow-lg shadow-blue-500/25' 
-                        : 'hover:ring-2 hover:ring-gray-300 hover:ring-offset-1 hover:shadow-md'
-                    } ${isDarkMode ? 'ring-offset-gray-800' : 'ring-offset-white'}`}
-                    onClick={() => onImageSelect && onImageSelect(actualIndex)}
-                  >
-                    {/* Thumbnail Image */}
-                    <div className={`relative ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} rounded-lg overflow-hidden aspect-square`}>
-                      {!loadedImages.has(actualIndex) && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
-                          <div className="relative">
-                            <div className="w-6 h-6 border-2 border-gray-300 rounded-full"></div>
-                            <div className="absolute top-0 left-0 w-6 h-6 border-2 border-transparent border-t-blue-500 rounded-full animate-spin"></div>
-                          </div>
-                        </div>
-                      )}
-                      <img
-                        src={imageUrls[actualIndex]}
-                        alt={image.name}
-                        className="w-full h-full object-cover"
-                        onLoad={() => handleImageLoad(actualIndex)}
-                        onError={() => handleImageError(actualIndex)}
-                        style={{ opacity: loadedImages.has(actualIndex) ? 1 : 0 }}
-                      />
-                      
-                      {/* Error Overlay */}
-                      {hasError && (
-                        <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
-                          <div className="bg-red-500 text-white rounded-full p-1">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                            </svg>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Hover Actions */}
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center">
-                        <div className="opacity-0 group-hover:opacity-100 flex space-x-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onImageClick && onImageClick(index);
-                            }}
-                            className={`p-2 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-lg shadow-lg`}
-                            title="View full size"
-                          >
-                            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                            </svg>
-                          </button>
-                          {hasError && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // This would need to be passed as a prop for retry functionality
-                                console.log('Retry image:', index);
-                              }}
-                              className={`p-2 ${isDarkMode ? 'bg-yellow-800 hover:bg-yellow-700' : 'bg-yellow-500 hover:bg-yellow-600'} rounded-lg shadow-lg`}
-                              title="Retry processing"
-                            >
-                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRemoveImage && onRemoveImage(index);
-                            }}
-                            className={`p-2 ${isDarkMode ? 'bg-red-800 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} rounded-lg shadow-lg`}
-                            title="Remove image"
-                          >
-                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {/* Selection Indicator */}
-                      {isSelected && (
-                        <div className="absolute top-2 right-2">
-                          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-full p-1.5 shadow-lg shadow-blue-500/30">
-                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                  </div>
+                    actualIndex={actualIndex}
+                    image={image}
+                    imageUrl={imageUrl}
+                    isSelected={isSelected}
+                    hasError={hasError}
+                    isDarkMode={isDarkMode}
+                    isLoaded={isLoaded}
+                    onSelect={onImageSelect}
+                    onLoad={handleImageLoad}
+                    onError={handleImageError}
+                    onPreview={onImageClick}
+                    onRemove={onRemoveImage}
+                  />
                 );
               })}
             </div>

@@ -1,216 +1,205 @@
-# 🚀 Stockify - AI-Powered Stock Photo Metadata Generator
+# Stockify
 
-[![CI/CD Pipeline](https://github.com/yourusername/stockify/workflows/CI/CD%20Pipeline/badge.svg)](https://github.com/yourusername/stockify/actions)
-[![Docker](https://img.shields.io/docker/v/yourusername/stockify?label=docker)](https://hub.docker.com/r/yourusername/stockify)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-[![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org/)
+Stockify is a React + Vite application that generates stock-photo metadata using Google Gemini.
+It supports platform-specific output for Shutterstock and Adobe Stock, with CSV export, retry flows, and client-side draft recovery.
 
-> **Transform your images into stock photo metadata with AI-powered precision**
+## Highlights
 
-Stockify is a modern React application that automatically generates metadata for stock photo platforms using Google's Gemini Multimodal AI. Upload multiple images and get platform-ready CSV files with descriptions, keywords, and categories.
+- Server-side Gemini API proxy (`/api/generate-metadata`) to avoid exposing API keys in client bundles
+- Platform-aware metadata generation for Shutterstock and Adobe Stock
+- Batch processing with progress tracking and retry support for failed items
+- Client-side image compression and payload-size safeguards
+- Draft persistence and preference storage in local storage
+- Production-ready rate limiting (Upstash Redis), plus in-memory fallback for local development
+- Error logging endpoint (`/api/log-error`) and health endpoint (`/api/health`)
 
-## ✨ Features
+## Tech Stack
 
-- 🎨 **Multi-Platform Support**: Shutterstock, Adobe Stock, Getty Images, and more
-- 🤖 **AI-Powered**: Uses Google Gemini Multimodal for intelligent metadata generation
-- 📱 **Modern UI**: Responsive design with dark/light mode
-- 🚀 **Fast Processing**: Batch image processing with progress tracking
-- 📊 **Smart Validation**: Platform-specific validation rules
-- 🔄 **Retry Logic**: Manual retry for failed images
-- 📋 **CSV Export**: Ready-to-upload CSV files
-- 🐳 **Docker Ready**: Containerized for easy deployment
+- React 18
+- Vite 7
+- Vercel Serverless Functions
+- Upstash Redis
+- Vitest + Testing Library
+- Tailwind CSS
 
-## 🚀 Quick Start
+## Quick Start (Local)
 
-### Using Docker (Recommended)
+### Prerequisites
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/stockify.git
-cd stockify
+- Node.js 18+
+- npm
+- Google Gemini API key
 
-# Run with Docker Compose
-docker-compose --profile dev up
-
-# Or run production build
-docker-compose --profile prod up
-```
-
-### Local Development
+### 1) Install dependencies
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/stockify.git
-cd stockify
-
-# Install dependencies
 npm install
-
-# Start development server
-npm start
-
-# Open http://localhost:3000
 ```
 
-## 🔧 Configuration
+### 2) Configure environment
 
-### Environment Variables
-
-Create a `.env` file in the root directory:
+Create `.env.local` in the project root:
 
 ```env
-# Google Gemini API Configuration
-REACT_APP_GEMINI_API_KEY=your_gemini_api_key_here
-
-# Optional: Custom API endpoint
-REACT_APP_GEMINI_API_ENDPOINT=https://generativelanguage.googleapis.com/v1beta/models
-
-# Optional: Default model
-REACT_APP_DEFAULT_MODEL=gemini-2.5-flash-lite
+GEMINI_API_KEY=your_real_key_here
 ```
 
-### Getting Your Gemini API Key
+For local development, `UPSTASH_*` variables are optional.
 
-1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Create a new API key
-3. Copy the key to your `.env` file
-
-## 📖 Usage
-
-1. **Upload Images**: Drag and drop or select multiple images
-2. **Choose Platform**: Select your target stock photo platform
-3. **Select AI Model**: Choose from available Gemini models
-4. **Process**: Click "Process Images" to generate metadata
-5. **Review**: Check generated metadata and edit if needed
-6. **Download**: Export CSV file ready for platform upload
-
-## 🏗️ Architecture
-
-```
-src/
-├── components/          # React components
-│   ├── FileUpload.js   # Drag & drop file handling
-│   ├── ImagePreview.js # Image grid with pagination
-│   ├── MetadataEditor.js # Metadata editing interface
-│   └── ...
-├── utils/              # Utility functions
-│   ├── geminiApi.js    # AI API integration
-│   ├── csvGenerator.js # CSV generation
-│   └── platformConfig.js # Platform configurations
-└── App.js              # Main application
-```
-
-## 🐳 Docker Commands
+### 3) Start the local API server
 
 ```bash
-# Development with hot reload
-docker-compose --profile dev-hot up
-
-# Production build
-docker-compose --profile prod up
-
-# Build custom image
-docker build -t stockify .
-
-# Run container
-docker run -p 80:80 stockify
+npm run dev:api
 ```
 
-## 🧪 Testing
+Runs on `http://localhost:3001`.
+
+### 4) Start the frontend app
+
+In a second terminal:
 
 ```bash
-# Run tests
-npm test
-
-# Run tests with coverage
-npm run test:coverage
-
-# Run linter
-npm run lint
-
-# Fix linting issues
-npm run lint:fix
+npm start
 ```
 
-## 🚀 Deployment
+Runs on `http://localhost:5173` by default.
 
-### Docker Hub
+### 5) Verify health
+
+Open:
+
+- `http://localhost:3001/api/health`
+
+If `GEMINI_API_KEY` is missing, this endpoint returns `degraded`.
+
+## Scripts
+
+| Script | Description |
+| --- | --- |
+| `npm start` | Start Vite dev server |
+| `npm run dev:api` | Start local Node server for `/api/*` routes |
+| `npm run dev:app` | Start Vite with debug logs |
+| `npm run build` | Build production bundle to `dist/` |
+| `npm run preview` | Preview production build locally |
+| `npm test` | Run Vitest in interactive mode |
+| `npm run test:run` | Run Vitest once |
+
+## Environment Variables
+
+| Variable | Required | Scope | Notes |
+| --- | --- | --- | --- |
+| `GEMINI_API_KEY` | Yes | Local + Production | Required for metadata generation |
+| `UPSTASH_REDIS_REST_URL` | Production | Server | Required in production for rate limiting |
+| `UPSTASH_REDIS_REST_TOKEN` | Production | Server | Required in production for rate limiting |
+| `REACT_APP_DEBUG` | No | Client build-time | Optional debug toggle |
+| `REACT_APP_TITLE` | No | Client build-time | Optional app title |
+| `REACT_APP_DESCRIPTION` | No | Client build-time | Optional app description |
+
+Security note: do not use `REACT_APP_GEMINI_API_KEY`.
+
+## API Endpoints
+
+### `POST /api/generate-metadata`
+
+- Accepts image payload + model + platform
+- Validates payload and MIME type
+- Applies rate limiting
+- Calls Gemini and returns structured metadata or typed error responses
+
+### `GET /api/health`
+
+- Returns service health state
+- In non-production, includes basic configuration checks
+
+### `POST /api/log-error`
+
+- Accepts batched client errors
+- Validates payload size and shape
+- Applies rate limiting
+- Emits structured logs
+
+## Supported Models
+
+Current model keys:
+
+- `gemini-3-flash-preview` (default)
+- `gemini-3-flash`
+- `gemini-2.5-flash`
+- `gemini-2.5-flash-lite`
+
+## Supported Input Formats
+
+- `image/jpeg`
+- `image/png`
+- `image/webp`
+- `image/gif`
+
+## Architecture
+
+```text
+Client (React/Vite)
+  -> /api/* (Vite proxy in local dev)
+  -> Local API server (dev) or Vercel functions (prod)
+  -> Google Gemini API
+```
+
+Key paths:
+
+- `src/main.jsx` - app entry
+- `src/App.jsx` - main UI orchestration
+- `src/utils/geminiApi.js` - client API calls and preprocessing
+- `api/generate-metadata.js` - server-side Gemini proxy
+- `api/_utils/rateLimit.js` - rate-limit utility
+- `scripts/dev-api-server.cjs` - local API server bootstrap
+
+## Testing
 
 ```bash
-# Build and push to Docker Hub
-docker build -t yourusername/stockify .
-docker push yourusername/stockify
+npm run test:run
 ```
 
-### Cloud Platforms
+Current tests cover utility modules (CSV generation, storage, image compression).
 
-- **AWS**: Use ECS, EKS, or Elastic Beanstalk
-- **Google Cloud**: Use Cloud Run or GKE
-- **Azure**: Use Container Instances or AKS
-- **Vercel**: Deploy directly from GitHub
-- **Netlify**: Deploy with custom build settings
+## Deployment (Vercel)
 
-## 🤝 Contributing
+Vercel is the primary deployment target.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Import repository in Vercel
+2. Set environment variables:
+   - `GEMINI_API_KEY`
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
+3. Deploy
 
-### Development Guidelines
+The project includes `vercel.json` for:
 
-- Follow the existing code style
-- Add tests for new features
-- Update documentation as needed
-- Ensure all tests pass before submitting
+- Vite build output (`dist/`)
+- Security headers (including CSP)
+- Function runtime settings
+- SPA rewrites
 
-## 📋 Roadmap
+## Troubleshooting
 
-- [ ] **Getty Images Support**: Add Getty Images platform configuration
-- [ ] **Batch Processing**: Process images in parallel for faster results
-- [ ] **Custom Categories**: Allow users to define custom category mappings
-- [ ] **API Integration**: Direct upload to stock platforms
-- [ ] **Analytics**: Track usage and performance metrics
-- [ ] **Mobile App**: React Native version for mobile devices
+### Metadata generation fails
 
-## 🐛 Troubleshooting
+- Check `GEMINI_API_KEY` in `.env.local`
+- Confirm API server is running (`npm run dev:api`)
+- Check `http://localhost:3001/api/health`
 
-### Common Issues
+### 429 errors
 
-**Images not processing:**
-- Check your Gemini API key is valid
-- Ensure images are in supported formats (JPG, PNG, WebP)
-- Verify API rate limits haven't been exceeded
+- Model or endpoint is rate-limited
+- Retry after the provided delay or switch model
 
-**CSV download issues:**
-- Check browser popup blockers
-- Ensure you have processed at least one image successfully
+### App cannot reach `/api`
 
-**Docker build failures:**
-- Ensure Docker is running
-- Check available disk space
-- Verify Dockerfile syntax
+- Ensure Vite is running with `npm start`
+- Ensure API server is running on port `3001`
 
-## 📄 License
+## Repository
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- GitHub: `https://github.com/Nau4man/stockify`
+- Issues: `https://github.com/Nau4man/stockify/issues`
+- Support: GitHub Issues only (no email support)
 
-## 🙏 Acknowledgments
-
-- [Google Gemini](https://ai.google.dev/) for the AI capabilities
-- [React](https://reactjs.org/) for the frontend framework
-- [Tailwind CSS](https://tailwindcss.com/) for styling
-- [Docker](https://www.docker.com/) for containerization
-
-## 📞 Support
-
-- 📧 Email: support@stockify.com
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/stockify/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/yourusername/stockify/discussions)
-- 📖 Documentation: [Wiki](https://github.com/yourusername/stockify/wiki)
-
----
-
-**Made with ❤️ by the Stockify Team**
+Made with love by Nau4man.

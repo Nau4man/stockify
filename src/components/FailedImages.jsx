@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 // Component to show countdown timer for rate-limited images
 const RateLimitCountdown = ({ retryAfterSeconds, onCountdownComplete }) => {
   const [secondsRemaining, setSecondsRemaining] = useState(retryAfterSeconds);
 
   useEffect(() => {
-    if (secondsRemaining <= 0) {
+    setSecondsRemaining(retryAfterSeconds);
+
+    if (retryAfterSeconds <= 0) {
       onCountdownComplete?.();
-      return;
+      return undefined;
     }
 
     const timer = setInterval(() => {
@@ -22,7 +24,7 @@ const RateLimitCountdown = ({ retryAfterSeconds, onCountdownComplete }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [secondsRemaining, onCountdownComplete]);
+  }, [retryAfterSeconds, onCountdownComplete]);
 
   if (secondsRemaining <= 0) {
     return <span className="text-green-600 font-medium">Ready to retry!</span>;
@@ -35,17 +37,28 @@ const RateLimitCountdown = ({ retryAfterSeconds, onCountdownComplete }) => {
   );
 };
 
-const FailedImages = ({ metadata, images, onRetry, retryingImages, onRetryAll, onRemoveImage, isDarkMode = false }) => {
+const FailedImages = ({
+  metadata,
+  images,
+  rateLimitModelName,
+  onRetry,
+  retryingImages,
+  onRetryAll,
+  onRemoveImage,
+  isDarkMode = false
+}) => {
   // Filter failed images
-  const failedImages = metadata.filter((item, index) => item.error);
+  const failedImages = useMemo(() => {
+    return metadata.filter(item => item.error);
+  }, [metadata]);
+  const hasRateLimitedImages = useMemo(() => {
+    return failedImages.some(item => item.errorType === 'rate_limit');
+  }, [failedImages]);
   const [readyToRetry, setReadyToRetry] = useState({});
 
   if (failedImages.length === 0) {
     return null;
   }
-
-  // Check if any images are rate-limited
-  const hasRateLimitedImages = failedImages.some(item => item.errorType === 'rate_limit');
 
   return (
     <div className={`${hasRateLimitedImages ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'} border rounded-lg p-4 mb-6`}>
@@ -67,7 +80,7 @@ const FailedImages = ({ metadata, images, onRetry, retryingImages, onRetryAll, o
       <div className="flex items-center justify-between mb-4">
         <p className={hasRateLimitedImages ? 'text-amber-700' : 'text-red-700'}>
           {hasRateLimitedImages
-            ? 'API rate limit reached. Wait for the countdown then retry:'
+            ? `API rate limit reached${rateLimitModelName ? ` for ${rateLimitModelName}` : ''}. Wait for the countdown then retry:`
             : 'The following images failed to process. You can retry them individually:'}
         </p>
         {onRetryAll && (

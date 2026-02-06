@@ -30,17 +30,18 @@ cp .env.example .env
 nano .env
 ```
 
-Add your configuration:
+Add your configuration (do not prefix `GEMINI_API_KEY` with `REACT_APP_`):
 
 ```env
-# Google Gemini API Configuration
-REACT_APP_GEMINI_API_KEY=your_gemini_api_key_here
+# Google Gemini API Configuration (server-side only)
+GEMINI_API_KEY=your_gemini_api_key_here
 
-# Optional: Custom API endpoint
-REACT_APP_GEMINI_API_ENDPOINT=https://generativelanguage.googleapis.com/v1beta/models
+# Upstash Redis (required in production for rate limiting)
+UPSTASH_REDIS_REST_URL=your_upstash_redis_rest_url
+UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_rest_token
 
-# Optional: Default model
-REACT_APP_DEFAULT_MODEL=gemini-2.5-flash-lite
+# Optional: Enable debug mode
+REACT_APP_DEBUG=false
 ```
 
 ### 3. Docker Commands
