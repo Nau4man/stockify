@@ -198,8 +198,8 @@ The project includes `vercel.json` for:
 
 ## Repository
 
-- GitHub: `https://github.com/Nau4man/stockify`
-- Issues: `https://github.com/Nau4man/stockify/issues`
+- GitHub: [Nau4man/stockify](https://github.com/Nau4man/stockify)
+- Issues: [Open an issue](https://github.com/Nau4man/stockify/issues)
 - Support: GitHub Issues only (no email support)
 
-Made with love by Nau4man.
+Made with love by [Nauman](https://linkedin.com/in/naumansabir).
