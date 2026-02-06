@@ -5,13 +5,25 @@ const RATE_LIMIT_MAX_REQUESTS = 30;
 
 const rateLimitMap = new Map();
 
-const isRedisConfigured = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+// Support both explicit Upstash env names and Vercel KV auto-injected names.
+const REDIS_REST_URL =
+  process.env.UPSTASH_REDIS_REST_URL ||
+  process.env.KV_REST_API_URL;
+
+const REDIS_REST_TOKEN =
+  process.env.UPSTASH_REDIS_REST_TOKEN ||
+  process.env.KV_REST_API_TOKEN;
+
+const isRedisConfigured = Boolean(REDIS_REST_URL && REDIS_REST_TOKEN);
 
 let redisClient = null;
 
 const getRedisClient = () => {
   if (!redisClient) {
-    redisClient = Redis.fromEnv();
+    redisClient = new Redis({
+      url: REDIS_REST_URL,
+      token: REDIS_REST_TOKEN
+    });
   }
   return redisClient;
 };
